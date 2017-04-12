@@ -10,7 +10,7 @@ danielturek.github.io/public/folder/fileName.html
 
 
 ```{r, include = FALSE}
-setwd('~/github/private/zeilinger_grapevine/')
+setwd('~/github/zeilinger_grapevine/')
 ```
 
 
