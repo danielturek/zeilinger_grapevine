@@ -71,7 +71,6 @@ setwd('~/github/zeilinger_grapevine/')
     - genotype = DSF, distance = 0
     - genotype = WT, distance = 0
 
-
 \   
 
 ### Modeling Decisions
@@ -154,7 +153,6 @@ $$
 \text{Priors:} \\
 \beta_{1,...,11} &\sim Normal(0, 10000) \\
 p_{obs.\ source\ plant},\ p_{obs.\ vector} &\sim Uniform(0, 1) \\
-p_{infect\ DSF},\ p_{infect\ WT} &\sim Uniform(0, 1) \\
 \ \\
 \text{Biological model (DSF source plants):} \\
 \log(\lambda^i_{DSF\ source\ plant}) &= \beta_1 + \beta_3 \cdot distance^i \\
@@ -288,14 +286,14 @@ code <- nimbleCode({
         logit(p_infect[obs_ind_infected[iObs]]) <- b[9]*genotype_dsf[obs_ind_infected[iObs]] + b[10]*genotype_wt[obs_ind_infected[iObs]] + b[11]*lambda_vector[obs_ind_infected[iObs]]
         infected[obs_ind_infected[iObs]] ~ dbern(p_infect[obs_ind_infected[iObs]])
     }
-    ## genotype DSF predictive node:
+    ## genotype DSF predictive nodes:
     log(lambda_plant_dsf) <- b[1]
     lambda_vector_dsf <- b[5] + b[7]*lambda_plant_dsf
     logit(p_infect_dsf) <- b[9] + b[11]*lambda_vector_dsf
-    ## genotype WT predictive node:
+    ## genotype WT predictive nodes:
     log(lambda_plant_wt) <- b[2]
     lambda_vector_wt <- b[6] + b[8]*lambda_plant_wt
-    logit(p_infect_wt) <- b[9] + b[11]*lambda_vector_wt
+    logit(p_infect_wt) <- b[10] + b[11]*lambda_vector_wt
 })
 
 inits <- list(
@@ -539,7 +537,7 @@ plot(samples[[1]], ask = FALSE)
 ```
 
 ```{r, echo = FALSE}
-for(i in 1:3)
+for(i in 1:5)
     plot(coda::as.mcmc(samples[[1]][, (3*i-2):(3*i)]), ask = FALSE)
 ```
 
