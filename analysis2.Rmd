@@ -424,14 +424,20 @@ res
 $\beta_1$, the constant term in the log() predictor for 
 source plant xf concentration in genotype DSF plants, is
 essentially `r round(res["b[1]","Mean"],3)`. Thus, the baseline xf
-concentration (at distance=0) in genotype DFS plants is $e^{\beta_1}$.
+concentration (at distance=0) in genotype DFS plants is $e^{\beta_1}
+\approx$ 62,000,000.
 
 $\beta_2$, the constant term in the log() predictor for 
-source plant xf concentration in genotype DSF plants, is essentially `r round(res["b[2]","Mean"],3)`,
-slightly lower than the genotype DSF constant term.  This implies that
+source plant xf concentration in genotype WT plants, is essentially `r round(res["b[2]","Mean"],3)`,
+slightly lower than the genotype DSF constant term.  Thus, the baseline xf
+concentration (at distance=0) in genotype WT plants is $e^{\beta_2}
+\approx$ 44,000,000.
+
+These values of $\beta_1$ and $\beta_2$ imply that
 for the same $distance$, genotype WT plants will have less xf
-bacteria than genotype DSF plants; specifically, lower by
-a factor of $e^{\beta_2-\beta_1}=$ `r round(exp(res["b[2]","Mean"] -
+bacteria than genotype DSF plants.  Specifically, lower in the WT
+plants by
+a factor of $e^{\beta_2-\beta_1} = e^{-0.346}=$ `r round(exp(res["b[2]","Mean"] -
 res["b[1]","Mean"]), 3)`.
 
 \   
@@ -443,29 +449,30 @@ distance, the source plant xf concentration in DSF plants will decrease by a fac
 of $e^{\beta_3}=$ `r round(exp(res["b[3]","Mean"]), 3)`.
 
 $\beta_4$, the coefficient of $distance$ in the log() predictor for 
-vector xf concentration in genotype WT plants, is essentially `r round(res["b[4]","Mean"],3)`.  This is significantly closer to 0 than that
-of genotype DWF plants, implying that the xf concentration falls of
- less (as a function of distance) in genotype WT plants, as
+vector xf concentration in genotype WT plants, is essentially
+`r round(res["b[4]","Mean"],3)`.  This is significantly closer to 0 than that
+of genotype DSF plants, implying that the xf concentration decreases
+ more gradually (as a function of distance) in genotype WT plants, as
 compared to genotype DSF plants.  Specicially, for every additional unit of
-distance, the source plant xf concentration in DSF plants will decrease by a factor
+distance, the source plant xf concentration in WT plants will decrease by a factor
 of $e^{\beta_4}=$ `r round(exp(res["b[4]","Mean"]), 3)`.
 
 \   
 
-For DSF sounce plants, $\beta_5$ and $\beta_7$ determine the linear
+For DSF source plants, $\beta_5$ and $\beta_7$ determine the linear
 relationship for how xf bacteria is transmitted to vectors, as
 $\lambda_{vector} = \beta_5 + \beta_7 \cdot \lambda_{source\ plant}$.  We are
-interested in $\beta_7$ corefficient, which is approximately equal to 0.00034.  This means that for DSF source
-plants, the vector xf concentration is approximately 0.00034 of the source plant xf concentration (at
-the appropriate distance).
+interested in the $\beta_7$ coefficient, which is approximately equal to 0.00034.  This means that for DSF source
+plants, the vector xf concentration is approximately 0.00034 of the source plant xf concentration.
 
-For WT sounce plants, $\beta_6$ and $\beta_8$ determine the linear
+For WT source plants, $\beta_6$ and $\beta_8$ determine the linear
 relationship for how xf bacteria is transmitted to vectors, as
 $\lambda_{vector} = \beta_6 + \beta_8 \cdot \lambda_{source\ plant}$.  We are
-interested in $\beta_8$ corefficient, which is approximately equal to 0.00085.  This means that for WT source
-plants, the vector xf concentration is approximately 0.00085 of the source plant xf concentration (at
-the appropriate distance).  Note this is a much higher transmission
-rate (from source plants to vectors) for WT plants, than for DSF plants.
+interested in the $\beta_8$ coefficient, which is approximately equal to 0.00085.  This means that for WT source
+plants, the vector xf concentration is approximately 0.00085 of the
+source plant xf concentration.  This is a much higher transmission
+rate from (source plants to vectors) from WT plants relative to DSF
+plants.
 
 \   
 
@@ -475,7 +482,8 @@ scale) for genotype DSF plants.  The 95% CI for $\beta_{9}$ is
 `r round(res["b[9]","CI Upper"], 2)`).  Taking the inverse-logit
 transformation, this gives a 95% CI for the baseline probability of infection for DSF
 source plants as (`r round(1/(1+exp(-res["b[9]","CI Lower"])), 2)`,
-`r round(1/(1+exp(-res["b[9]","CI Upper"])), 2)`).
+`r round(1/(1+exp(-res["b[9]","CI Upper"])), 2)`).  This
+does not take xf concentration in the vector into account.
 
 $\beta_{10}$ gives the baseline probability of infection (on the logit
 scale) for genotype WT plants.  The 95% CI for $\beta_{10}$ is
@@ -483,7 +491,8 @@ scale) for genotype WT plants.  The 95% CI for $\beta_{10}$ is
 `r round(res["b[10]","CI Upper"], 2)`).  Taking the inverse-logit
 transformation, this gives a 95% CI for the baseline probability of infection for WT
 source plants as (`r round(1/(1+exp(-res["b[10]","CI Lower"])), 2)`,
-`r round(1/(1+exp(-res["b[10]","CI Upper"])), 2)`).
+`r round(1/(1+exp(-res["b[10]","CI Upper"])), 2)`).  This
+does not take xf concentration in the vector into account.
 
 \   
 
@@ -505,14 +514,14 @@ is bounded by the 95% CI (`r round(res["p_obs_vector","CI Lower"], 2)`,
 \   
 
 
-For the predictive nodes:
+The predictive nodes give the best idea of the probability of
+infection, from either DSF or WT source plants, using distance = 0.
+These estimates take all model parameters and biological processes into account.
 
 - Probability of infection for genotype DSF is in the 95% CI: (`r round(res["p_infect_dsf","CI Lower"], 2)`,
 `r round(res["p_infect_dsf","CI Upper"], 2)`), with median = `r round(res["p_infect_dsf","Median"], 2)`.
 - Probability of infection for genotype WT is in the 95% CI: (`r round(res["p_infect_wt","CI Lower"], 2)`,
 `r round(res["p_infect_wt","CI Upper"], 2)`), with median = `r round(res["p_infect_wt","Median"], 2)`.
-
-Both of these predictions use the value distance = 0.
 
 \   
 
