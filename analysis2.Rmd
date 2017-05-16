@@ -86,11 +86,11 @@ relationship is distinct for each genotype.
 
 For genotype DSF plants:
 $$\lambda^i_{vector} = \beta_5 + \beta_7 \cdot \lambda^i_{source\
-plant},$$
+plant}$$
 
 and for genotype DSF plants:
 $$\lambda^i_{vector} = \beta_6 + \beta_8 \cdot \lambda^i_{source\
-plant}.$$
+plant}$$
 
 This allows us to study how the linear relationship between source plant xf
 concentration and vector xf concentation varies for each genotype.
