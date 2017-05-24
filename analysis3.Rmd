@@ -35,6 +35,29 @@ setwd('~/github/zeilinger_grapevine/')
 
 \   
 
+### Updates in Analysis 3
+
+\  
+
+- Using new `dsf_data_for_nimble.rds` data file:
+    - Corrected (switched) designations of DSF and WT genotypes 
+    - Data uses method for estimating the xf concentration in vectors from the qPCR test 
+
+- Interpretations section has beed carefully updated and revised, since most of the
+  results regarding DSF and WT genotypes have switched.  In addition,
+  a number of the other numerical results have changed.  
+
+- New predictions included for probability of infection.  In addition to
+  predicting (for each genotype) at distance = 0, we also collect
+  samples of probability of infection for *all* plants, which is
+  representative of *all* distances.  Summary statistics and posterior
+  density plots for both types of predictions are included, which have
+  explanable differences, but show nice agreement.  
+
+\   
+
+
+
 ### Updates in Analysis 2
 
 \  
@@ -73,7 +96,7 @@ setwd('~/github/zeilinger_grapevine/')
 
 \   
 
-### Modeling Decisions
+### Modeling Decisions 
 
 \  
 
@@ -144,7 +167,7 @@ genotype fixed effects, and the model never converges.
 \   
 
 
-### Hierarchical Model (updated v2)
+### Hierarchical Model (updated v2) 
 
 \  
 
@@ -179,6 +202,8 @@ infected^i &\sim Bernoulli(p^i_{infect}) \\
 $$
 
 \   
+
+
 
 ### Data Setup
 
@@ -248,7 +273,7 @@ load('data/temp1.RData')
 
 \   
 
-### Model and MCMC 
+### Model and MCMC  (updated v2)
 
 \  
 
@@ -318,6 +343,10 @@ conf$addSampler(c('b[9:11]'),     'AF_slice')
 ## add monitors for predictive nodes:
 conf$addMonitors('p_infect_dsf', 'p_infect_wt')
 
+## add monitors for probability of infection (thin = 100)
+conf$setThin2(100)
+conf$addMonitors2('p_infect')
+
 Rmcmc <- buildMCMC(conf)
 
 system.time(Cmodel <- compileNimble(Rmodel))
@@ -344,6 +373,7 @@ compilation finished.
 ```{r, eval=FALSE}
 set.seed(0)
 system.time(samples <- runMCMC(Cmcmc, 50000, nburnin=10000, nchains=2, returnCodaMCMC=TRUE))
+samples2 <- as.matrix(Cmcmc$mvSamples2)
 ```
 
 ```
@@ -354,15 +384,16 @@ running chain 2...
 |-------------|-------------|-------------|-------------|
 |-------------------------------------------------------|
    user  system elapsed 
- 70.132   0.421  71.023 
+ 73.600   0.445  74.361 
 ```
 
 ```{r, include=FALSE, eval=FALSE}
-save(samples, file='results/samples.RData')
+save(samples, samples2, file='results/samples.RData')
 ```
 
 ```{r, include=FALSE}
 setwd('~/github/zeilinger_grapevine/')
+load('data/temp1.RData')
 load('results/samples.RData')
 ```
 
@@ -387,7 +418,7 @@ gelman.diag(samples)
 \   
 
 The effective sample size of the first chain is satisfactory, with a
-minimum of 7,000 effectively independent samples from all posterior
+minimum of more than 6,700 effectively independent samples from all posterior
 dimensions, resulting from the 40,000 post burn-in samples.
 
 ```{r }
@@ -417,7 +448,11 @@ res
 
 \   
 
-### Interpretations (updated v2)
+### Interpretations (updated v3)
+
+\   
+
+##### Bacteria concentration in source plants (constant terms)
 
 \   
 
@@ -425,54 +460,66 @@ $\beta_1$, the constant term in the log() predictor for
 source plant xf concentration in genotype DSF plants, is
 essentially `r round(res["b[1]","Mean"],3)`. Thus, the baseline xf
 concentration (at distance=0) in genotype DFS plants is $e^{\beta_1}
-\approx$ 62,000,000.
+\approx$ 44,000,000.
 
 $\beta_2$, the constant term in the log() predictor for 
 source plant xf concentration in genotype WT plants, is essentially `r round(res["b[2]","Mean"],3)`,
-slightly lower than the genotype DSF constant term.  Thus, the baseline xf
+slightly *higher* than the genotype DSF constant term.  Thus, the baseline xf
 concentration (at distance=0) in genotype WT plants is $e^{\beta_2}
-\approx$ 44,000,000.
+\approx$ 62,000,000.
 
 These values of $\beta_1$ and $\beta_2$ imply that
-for the same $distance$, genotype WT plants will have less xf
-bacteria than genotype DSF plants.  Specifically, lower in the WT
+for the *same distance*, genotype WT plants will have more xf
+bacteria than genotype DSF plants.  Specifically, higher in the WT
 plants by
-a factor of $e^{\beta_2-\beta_1} = e^{-0.346}=$ `r round(exp(res["b[2]","Mean"] -
+a factor of $e^{\beta_2-\beta_1} = e^{0.346}=$ `r round(exp(res["b[2]","Mean"] -
 res["b[1]","Mean"]), 3)`.
 
 \   
 
-$\beta_3$, the coefficient of $distance$ in the log() predictor for 
+##### Bacteria concentration in source plants (distance effect)
+
+\   
+
+$\beta_3$, the coefficient of distance in the log() predictor for 
 source plant xf concentration in genotype DSF plants, is essentially
 `r round(res["b[3]","Mean"],3)`. For every additional unit of
 distance, the source plant xf concentration in DSF plants will decrease by a factor
 of $e^{\beta_3}=$ `r round(exp(res["b[3]","Mean"]), 3)`.
 
-$\beta_4$, the coefficient of $distance$ in the log() predictor for 
+$\beta_4$, the coefficient of distance in the log() predictor for 
 vector xf concentration in genotype WT plants, is essentially
-`r round(res["b[4]","Mean"],3)`.  This is significantly closer to 0 than that
+`r round(res["b[4]","Mean"],3)`.  This is significantly lower than that
 of genotype DSF plants, implying that the xf concentration decreases
- more gradually (as a function of distance) in genotype WT plants, as
+ more rapidly (as a function of distance) in genotype WT plants, as
 compared to genotype DSF plants.  Specicially, for every additional unit of
 distance, the source plant xf concentration in WT plants will decrease by a factor
 of $e^{\beta_4}=$ `r round(exp(res["b[4]","Mean"]), 3)`.
 
+\  
+
+##### Bacteria transmission from source plants to vectors 
+
 \   
 
 For DSF source plants, $\beta_5$ and $\beta_7$ determine the linear
-relationship for how xf bacteria is transmitted to vectors, as
+relationship for how xf is transmitted to vectors, as
 $\lambda_{vector} = \beta_5 + \beta_7 \cdot \lambda_{source\ plant}$.  We are
-interested in the $\beta_7$ coefficient, which is approximately equal to 0.00034.  This means that for DSF source
-plants, the vector xf concentration is approximately 0.00034 of the source plant xf concentration.
+interested in the $\beta_7$ coefficient, which is approximately equal to 0.00087.  This means that for DSF source
+plants, the vector xf concentration scales as 0.00087 times the source plant xf concentration.
 
 For WT source plants, $\beta_6$ and $\beta_8$ determine the linear
-relationship for how xf bacteria is transmitted to vectors, as
+relationship for how xf is transmitted to vectors, as
 $\lambda_{vector} = \beta_6 + \beta_8 \cdot \lambda_{source\ plant}$.  We are
-interested in the $\beta_8$ coefficient, which is approximately equal to 0.00085.  This means that for WT source
-plants, the vector xf concentration is approximately 0.00085 of the
-source plant xf concentration.  This is a much higher transmission
-rate from (source plants to vectors) from WT plants relative to DSF
+interested in the $\beta_8$ coefficient, which is approximately equal to 0.00032.  This means that for WT source
+plants, the vector xf concentration scales as 0.00032 times the
+source plant xf concentration.  This is a much *lower transmission
+rate* from (source plants to vectors) for WT plants, as compared to DSF
 plants.
+
+\   
+
+##### Probability of test plant infection (genotype effect) 
 
 \   
 
@@ -480,7 +527,7 @@ $\beta_{9}$ gives the baseline probability of infection (on the logit
 scale) for genotype DSF plants.  The 95% CI for $\beta_{9}$ is
 (`r round(res["b[9]","CI Lower"], 2)`,
 `r round(res["b[9]","CI Upper"], 2)`).  Taking the inverse-logit
-transformation, this gives a 95% CI for the baseline probability of infection for DSF
+transformation $\left( \tfrac{1}{1+e^{-x}} \right)$, this gives a 95% CI for the baseline probability of infection for DSF
 source plants as (`r round(1/(1+exp(-res["b[9]","CI Lower"])), 2)`,
 `r round(1/(1+exp(-res["b[9]","CI Upper"])), 2)`).  This
 does not take xf concentration in the vector into account.
@@ -489,41 +536,102 @@ $\beta_{10}$ gives the baseline probability of infection (on the logit
 scale) for genotype WT plants.  The 95% CI for $\beta_{10}$ is
 (`r round(res["b[10]","CI Lower"], 2)`,
 `r round(res["b[10]","CI Upper"], 2)`).  Taking the inverse-logit
-transformation, this gives a 95% CI for the baseline probability of infection for WT
+transformation $\left( \tfrac{1}{1+e^{-x}} \right)$, this gives a 95% CI for the baseline probability of infection for WT
 source plants as (`r round(1/(1+exp(-res["b[10]","CI Lower"])), 2)`,
 `r round(1/(1+exp(-res["b[10]","CI Upper"])), 2)`).  This
 does not take xf concentration in the vector into account.
 
 \   
 
- $\beta_{11}$, the coefficient for vector xf level in the logit() predictor for test plant
-infection, is not significantly different from 0, with 95% CI
-(-0.00015, 0.00002).
+##### Probability of test plant infection (vector xf effect) 
+
+\   
+
+$\beta_{11}$, the coefficient for vector xf level in the logit() predictor for test plant
+infection, is not significantly different from 0, with 95% credible
+interval (-0.00015, 0.00003).
+
+\   
+
+##### Bacteria detection (source plants, vectors) 
 
 \   
 
 $p_{obs.\ source\ plant}$, the probability of xf detection in source
 plants, is bounded by the 95% CI (`r round(res["p_obs_plant","CI Lower"], 2)`,
-`r round(res["p_obs_plant","CI Upper"], 2)`).
+`r round(res["p_obs_plant","CI Upper"], 2)`), with median
+`r round(res["p_obs_plant","Median"], 3)`.  This means the test used has about
+a 50% chance of detecting any xf bacteria in source plants.
 
+\   
 
 $p_{obs.\ vector}$, the probability of xf detection in vectors,
 is bounded by the 95% CI (`r round(res["p_obs_vector","CI Lower"], 2)`,
-`r round(res["p_obs_vector","CI Upper"], 2)`).
+`r round(res["p_obs_vector","CI Upper"], 2)`) , with median
+`r round(res["p_obs_vector","Median"], 3)`.  This means the test used has about
+a 20% chance of detecting any xf bacteria in vectors.
 
 \   
 
+##### Predictive distributions for test plant infection 
+
+\   
 
 The predictive nodes give the best idea of the probability of
-infection, from either DSF or WT source plants, using distance = 0.
+infection, from either DSF or WT source plants, predicted at distance = 0.
 These estimates take all model parameters and biological processes into account.
 
-- Probability of infection for genotype DSF is in the 95% CI: (`r round(res["p_infect_dsf","CI Lower"], 2)`,
-`r round(res["p_infect_dsf","CI Upper"], 2)`), with median = `r round(res["p_infect_dsf","Median"], 2)`.
-- Probability of infection for genotype WT is in the 95% CI: (`r round(res["p_infect_wt","CI Lower"], 2)`,
-`r round(res["p_infect_wt","CI Upper"], 2)`), with median = `r round(res["p_infect_wt","Median"], 2)`.
+- Probability of infection for genotype DSF (at distance = 0) is in the 95% CI: (`r round(res["p_infect_dsf","CI Lower"], 2)`,
+`r round(res["p_infect_dsf","CI Upper"], 2)`), with median = `r round(res["p_infect_dsf","Median"], 2)`. 
+- Probability of infection for genotype WT (at distance = 0) is in the 95% CI: (`r round(res["p_infect_wt","CI Lower"], 2)`,
+`r round(res["p_infect_wt","CI Upper"], 2)`), with median = `r round(res["p_infect_wt","Median"], 2)`. 
 
 \   
+
+Next, we look at the probabilities of infection from *all test plants*,
+separated by genotype.  These do not assume any particular distance
+(*e.g.*, distance = 0).  Instead, these quite literally represent *all*
+distances in the input data set.
+
+\   
+
+```{r }
+dsf_ind <- intersect(which(constants$genotype_dsf==1), constants$obs_ind_infected)
+wt_ind  <- intersect(which(constants$genotype_wt ==1), constants$obs_ind_infected)
+pinfect_dsf_nodes <- paste0('p_infect[', dsf_ind, ']')
+pinfect_wt_nodes  <- paste0('p_infect[', wt_ind,  ']')
+pinfect_dsf <- as.numeric(samples2[, pinfect_dsf_nodes])
+pinfect_wt  <- as.numeric(samples2[, pinfect_wt_nodes])
+dsf_res <- c(quantile(pinfect_dsf,0.025), mean(pinfect_dsf), median(pinfect_dsf), quantile(pinfect_dsf,0.975))
+wt_res <-  c(quantile(pinfect_wt, 0.025), mean(pinfect_wt ), median(pinfect_wt ), quantile(pinfect_wt, 0.975))
+infection_results <- rbind(dsf_res, wt_res)
+rownames(infection_results) <- c('p_infect_dsf', 'p_infect_wt')
+colnames(infection_results) <- c("CI Lower", "Mean", "Median", "CI Upper")
+round(infection_results, 2)
+```
+
+\   
+
+We see that:
+
+- Probabilities of infection for genotype DSF plants are in the 95% CI:
+(`r round(infection_results["p_infect_dsf","CI Lower"], 2)`,
+`r round(infection_results["p_infect_dsf","CI Upper"], 2)`), with
+median = `r round(infection_results["p_infect_dsf","Median"], 2)`.
+- Probabilities of infection for genotype WT plants are in the 95% CI:
+(`r round(infection_results["p_infect_wt","CI Lower"], 2)`,
+`r round(infection_results["p_infect_wt","CI Upper"], 2)`), with
+median = `r round(infection_results["p_infect_wt","Median"], 2)`.
+
+\   
+
+These agree well with the predictions at distance = 0, although the
+95% intervals here are wider, since this is representative of all possible
+distances (giving larger variation in the probability of infection).
+The medians closely agree.
+
+\   
+
 
 
 
@@ -531,18 +639,46 @@ These estimates take all model parameters and biological processes into account.
 ### Posterior Density Plots
 
 \   
+ 
+##### Predictive distributions for test plant infection 
 
-Overlay the predictive distributions for test plant infection:
+\   
 
+Below are the posterior predictive distributions for test plant 
+infection, for genotype DSF and WT plants, predicted at distance = 0. 
+
+\   
 
 ```{r fig.height=2}
-samplesPlot(samples[[1]], c('p_infect_dsf','p_infect_wt'), height=2)
+samplesPlot(samples[[1]], c('p_infect_dsf','p_infect_wt'), width = 4, height = 2, traceplot = FALSE)
 ```
+
+\   
+
+Below are the posterior predictive distributions for test plant 
+infection, for genotype DSF and WT plants, for all distances.
+
+*Note:* This next plot could be smoothed out if you want to use it.  I used
+ a large thinning interval (thin = 100) for collecting these samples,
+ since it's for a large number of nodes (one for each plant).  The
+ thinning interval could be reduced, to retain more samples and smooth out the predictive distributions.
+
+```{r fig.height=2}
+set.seed(0)
+pinfect_df <- data.frame(p_infect_dsf = sample(pinfect_dsf,length(pinfect_wt)),
+                         p_infect_wt  = pinfect_wt)
+samplesPlot(pinfect_df, c('p_infect_dsf','p_infect_wt'), width = 4, height = 2, traceplot = FALSE)
+```
+
 
 \  
 
+##### Posterior densities of all model parameters
+
+\   
+
 ```{r, eval = FALSE}
-plot(samples[[1]], ask = FALSE)
+plot(coda::as.mcmc(samples[[1]]), ask = FALSE)
 ```
 
 ```{r, echo = FALSE}
