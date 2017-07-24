@@ -1,0 +1,974 @@
+---
+title: Grapevine xf Analysis 4
+author: Daniel Turek
+output: html_document
+references:
+  - id: tibbits14
+    title: Automated factor slice sampling
+    author:
+    - family: Tibbits
+      given: Matthew M
+    - family: Groendyke
+      given: Chris
+    - family: Haran
+      given: Murali
+    - family: Liechty
+      given: John C
+    container-title: Journal of Computational and Graphical Statistics
+    volume: 23
+    issue: 2
+    publisher: Taylor & Francis
+    page: 543-563
+    type: article-journal
+    issued:
+      year: 2014
+---
+
+<!---
+danielturek.github.io/public/folder/fileName.html
+-->
+
+
+```{r, include = FALSE}
+setwd('~/github/zeilinger_grapevine/')
+```
+
+
+\   
+
+### Updates in Analysis 4
+
+- New hierarchical plots added
+
+
+\   
+
+### Updates in Analysis 3 
+
+\  
+
+- Using new `dsf_data_for_nimble.rds` data file:
+    - Corrected (switched) designations of DSF and WT genotypes 
+    - Data uses method for estimating the xf concentration in vectors from the qPCR test 
+
+- Interpretations section has beed carefully updated and revised, since most of the
+  results regarding DSF and WT genotypes have switched.  In addition,
+  a number of the other numerical results have changed.  
+
+- New predictions included for probability of infection.  In addition to
+  predicting (for each genotype) at distance = 0, we also collect
+  samples of probability of infection for *all* plants, which is
+  representative of *all* distances.  Summary statistics and posterior
+  density plots for both types of predictions are included, which have
+  explanable differences, but show nice agreement.  
+
+\   
+
+
+
+### Updates in Analysis 2
+
+\  
+
+- Vector xf concentration 
+  $(\lambda^i_{vector})$ a modelled as a linear function of the source
+  plant xf concentration $(\lambda^i_{plant})$.  Further, this linear
+  relationship includes an interaction with genotype, so we separately
+  model this linear relationship for each source plant genotype.
+
+- Tried introducing a probabilistic model for whether the vectors
+  acquire *any* xf bacteria from the source plant, as a function of
+  plant genotype, to account for the "patchiness" of the bacteria in
+  DSF plants.  However, this introduced a lack of identfyability
+  between the probability of *transmitting* bacteria to the vectors (not
+  currently in the model) and the probability of *observing* bacteria
+  in the vectors (in the model).  So this probabilistic model for
+  transmission from source plants to vectors was removed.
+
+- The model for test plant infection was augmented to include a
+  dependence on plant genotype.
+
+- Simplified the parameterizations of interaction terms, for better
+  interpretability.  The mathematical description of the hierarchical model more clearly 
+  presents the biological processes for genotype DSF and WT
+  plants.  And more clear descriptions for the interpretation of results.
+
+- Make use of a new joint sampling algorithm avaialble in NIMBLE, the
+  automated factor slice sampler [@tibbits14].  Although this increases runtime, it
+  is extremely effective at sampling highly correlated groups of parameters.
+
+- Predictive nodes are added to predict test plant infection, for the
+  following two cases:
+    - genotype = DSF, distance = 0
+    - genotype = WT, distance = 0
+
+\   
+
+### Modeling Decisions 
+
+\  
+
+##### Vector xf is linear in source plant xf, by genotype (updated v2)
+
+The xf concentration in the vectors
+$(\lambda^i_{vector})$ is modeled as a linear function of the xf concentration in the
+source plant $(\lambda^i_{source\ plant})$.  However, this linear
+relationship is distinct for each genotype.
+
+For genotype DSF plants:
+$$\lambda^i_{vector} = \beta_5 + \beta_7 \cdot \lambda^i_{source\
+plant}$$
+
+and for genotype DSF plants:
+$$\lambda^i_{vector} = \beta_6 + \beta_8 \cdot \lambda^i_{source\
+plant}$$
+
+This allows us to study how the linear relationship between source plant xf
+concentration and vector xf concentation varies for each genotype.
+
+\   
+
+##### Source plant and vector observation processes 
+
+To model the imperfect detection of xf bacteria in the source plants and 
+vectors, I used a fixed (and separate) probability of detection for 
+each.  When measuring the xf concentration in each source plant, there's 
+a $p_{obs.\ source\ plant}$ probability of a positive detection (e.g.,
+a non-zero measurement).
+
+Similarly, when doing the PCR test to 
+measure the xf concentration in each vector, there's 
+a $p_{obs.\ vector}$ probability of a positive detection.  Each of
+these probabilities of detection are unknown model parameters.
+
+To implement these detection processes, additional binary latent variables are
+introduced into the model.  The binary-valued $z^i_{source\ plant}$ and $z^i_{vector}$
+variables indicate whether a positive detection was made in each source
+plant or vector.
+
+\   
+
+##### Test plant infection process (updated v2)
+
+Probabiliy of infection for the test plants is modeled (on the logit
+scale) as a linear function of the vector xf concentration, as well as
+a constant term for each plant genotype, as:
+
+$$\text{logit}(p^i_{infect}) = \beta_9 \cdot \text{genotype}_{DSF} +
+\beta_{10} \cdot \text{genotype}_{WT} + \beta_{11} \cdot  \lambda^i_{vector}$$
+
+This sheds light on differences between the two plant genotypes, although there is still
+not significant effect from the vector xf concentration.
+
+
+\  
+
+##### Plant Random Effects 
+
+The plant random effects $(\alpha_{plant\ ID})$ were removed from the 
+model, since there isn't enough data to support them. 
+Specifically, with only 97 observations from 51 unique plants,
+there aren't enough observations from each plant to identify the random 
+effects.  Including them, sampling of the random effects trades off with the 
+genotype fixed effects, and the model never converges. 
+
+\   
+
+
+### Hierarchical Model (updated v2) 
+
+\  
+
+$$
+\begin{align}
+\text{Priors:} \\
+\beta_{1,...,11} &\sim Normal(0, 10000) \\
+p_{obs.\ source\ plant},\ p_{obs.\ vector} &\sim Uniform(0, 1) \\
+\ \\
+\text{Biological model (DSF source plants):} \\
+\log(\lambda^i_{DSF\ source\ plant}) &= \beta_1 + \beta_3 \cdot distance^i \\
+\lambda^i_{vector} &= \beta_5 + \beta_7 \cdot \lambda^i_{DSF\ source\ plant} \\
+\ \\
+\text{Biological model (WT source plants):} \\
+\log(\lambda^i_{WT\ source\ plant}) &= \beta_2 + \beta_4 \cdot distance^i \\
+\lambda^i_{vector} &= \beta_6 + \beta_8 \cdot \lambda^i_{WT\ source\ plant} \\
+\ \\
+\text{Source plant observation model:} \\
+z^i_{source\ plant} &\sim Bernoulli(p_{obs.\ source\ plant}) \\
+xf^i_{source\ plant} &\sim Poisson(z^i_{source\ plant} \cdot \lambda^i_{source\ plant}) \\
+\ \\
+\text{Vector observation model:} \\
+z^i_{vector} &\sim Bernoulli(p_{obs.\ vector}) \\
+xf^i_{vector} &\sim Poisson(z^i_{vector} \cdot \lambda^i_{vector}) \\
+\ \\
+\text{Test plant infection model:} \\
+\text{logit}(p^i_{infect}) &= \beta_9 \cdot \text{genotype}_{DSF} +
+\beta_{10} \cdot \text{genotype}_{WT} + \beta_{11} \cdot  
+\lambda^i_{vector} \\  
+infected^i &\sim Bernoulli(p^i_{infect}) \\
+\end{align}
+$$
+
+\   
+
+
+
+### Data Setup
+
+\  
+
+A few manipulations are done of the input data.
+
+```{r }
+dsf <- readRDS('data/dsf_data_for_nimble.rds')   ## original data file
+```
+
+We specify covariates:
+
+- $genotype_{dsf}=1$ when genotype = DSF, and 0 otherwise
+- $genotype_{wt}=1$ when genotype = WT, and 0 otherwise 
+
+```{r }
+constants <- list(
+    N = dsf$dsfData$N,
+    ##nplant = dsf$dsfData$nplant,
+    ##plantID = dsf$dsfData$plantID,
+    distance = dsf$dsfData$distance,
+    ## in original dataset: genotype 1=DSF, 2=WT
+    genotype_dsf = ifelse(dsf$dsfData$genotype==1, 1, 0),   ## indicator for DSF
+    genotype_wt  = ifelse(dsf$dsfData$genotype==2, 1, 0)    ## indicator for WT
+    ## note: test plants are all WT genotype
+)
+```
+
+The values of the $xf_{vector}$ data are truncated to be integers, for
+compatibility with the Poisson distribution.
+
+```{r }
+data <- list(
+    xf_source_plant = dsf$dsfData$xf_source_plant,
+    xf_vector = floor(dsf$dsfData$xf_vector),   ## change to integers
+    infected = dsf$dsfData$infected
+)
+```
+
+We also create three additional vectors of indicies.  Thes contain the
+indicies of the observed (non-NA) data, for each of $xf_{source\
+plant}$, $xf_{vector}$, and $infected$.  These will be used in the
+model to skip creating posterior predictive nodes, which speed
+up the MCMC and overall mixing considerably.
+
+```{r }
+## indices of observed values for each set of data:
+constants$obs_ind_plant <- which(!is.na(data$xf_source_plant))
+constants$obs_ind_vector <- which(!is.na(data$xf_vector))
+constants$obs_ind_infected <- which(!is.na(data$infected))
+
+## and the counts of each:
+constants$N_obs_plant <- length(constants$obs_ind_plant)
+constants$N_obs_vector <- length(constants$obs_ind_vector)
+constants$N_obs_infected <- length(constants$obs_ind_infected)
+```
+
+
+```{r include=FALSE, eval=FALSE}
+save(dsf, data, constants, file = 'data/temp1.RData')
+
+setwd('~/github/zeilinger_grapevine/')
+load('data/temp1.RData')
+```
+
+
+\   
+
+### Model and MCMC  (updated v2)
+
+\  
+
+Use <a href="https://r-nimble.org/" target="_blank">NIMBLE</a> to build the model and corresponding MCMC algorithm.
+
+\   
+
+```{r, eval=FALSE}
+library(nimble)
+
+code <- nimbleCode({
+    ## priors:
+    for(i in 1:11) {
+        b[i] ~ dnorm(0, sd=10000)
+    }
+    p_obs_plant ~ dbeta(1, 1)   ## probability of xf detection in source plant
+    p_obs_vector ~ dbeta(1, 1)  ## probability of xf detection in vector
+    ## biological model:
+    for(i in 1:N) {
+        log(lambda_plant[i]) <- b[1]*genotype_dsf[i] + b[2]*genotype_wt[i] + b[3]*distance[i]*genotype_dsf[i] + b[4]*distance[i]*genotype_wt[i]
+        lambda_vector[i] <- b[5]*genotype_dsf[i] + b[6]*genotype_wt[i] + b[7]*lambda_plant[i]*genotype_dsf[i] + b[8]*lambda_plant[i]*genotype_wt[i]
+    }
+    ## only model observed (non-NA) values of xf_source_plant:
+    for(iObs in 1:N_obs_plant) {
+        z_plant[obs_ind_plant[iObs]] ~ dbern(p_obs_plant)
+        xf_source_plant[obs_ind_plant[iObs]] ~ dpois(z_plant[obs_ind_plant[iObs]] * lambda_plant[obs_ind_plant[iObs]])
+    }
+    ## only model observed (non-NA) values of xf_vector:
+    for(iObs in 1:N_obs_vector) {
+        z_vector[obs_ind_vector[iObs]] ~ dbern(p_obs_vector)
+        xf_vector[obs_ind_vector[iObs]] ~ dpois(z_vector[obs_ind_vector[iObs]] * lambda_vector[obs_ind_vector[iObs]])
+    }
+    ## only model observed (non-NA) values of infected:
+    for(iObs in 1:N_obs_infected) {
+        logit(p_infect[obs_ind_infected[iObs]]) <- b[9]*genotype_dsf[obs_ind_infected[iObs]] + b[10]*genotype_wt[obs_ind_infected[iObs]] + b[11]*lambda_vector[obs_ind_infected[iObs]]
+        infected[obs_ind_infected[iObs]] ~ dbern(p_infect[obs_ind_infected[iObs]])
+    }
+    ## genotype DSF predictive nodes:
+    log(lambda_plant_dsf) <- b[1]
+    lambda_vector_dsf <- b[5] + b[7]*lambda_plant_dsf
+    logit(p_infect_dsf) <- b[9] + b[11]*lambda_vector_dsf
+    ## genotype WT predictive nodes:
+    log(lambda_plant_wt) <- b[2]
+    lambda_vector_wt <- b[6] + b[8]*lambda_plant_wt
+    logit(p_infect_wt) <- b[10] + b[11]*lambda_vector_wt
+})
+
+inits <- list(
+    b = c(rep(0,4), 1, 1, 0, 0, rep(0,3)),
+    p_obs_plant = 0.5,
+    p_obs_vector = 0.5,
+    z_plant = rep(1, constants$N),
+    z_vector = rep(1, constants$N)
+)
+
+Rmodel <- nimbleModel(code, constants, data, inits)
+
+calculate(Rmodel)
+
+conf <- configureMCMC(Rmodel)
+
+## add specialized automated factor slice samplers:
+conf$addSampler(c('b[5]','b[7]'), 'AF_slice')
+conf$addSampler(c('b[6]','b[8]'), 'AF_slice')
+conf$addSampler(c('b[9:11]'),     'AF_slice')
+
+## add monitors for predictive nodes:
+conf$addMonitors('p_infect_dsf', 'p_infect_wt')
+
+## add monitors for probability of infection (thin = 100)
+conf$setThin2(100)
+conf$addMonitors2('p_infect')
+
+## also add monitors for latent observation (z) processes,
+## and predicted xf vector concentrations lambda_vector (thin = 100),
+conf$addMonitors2('z_plant', 'z_vector', 'lambda_vector')
+
+Rmcmc <- buildMCMC(conf)
+
+system.time(Cmodel <- compileNimble(Rmodel))
+```
+
+```
+compiling... this may take a minute. Use 'showCompilerOutput = TRUE' to see C++ compiler details.
+compilation finished.
+   user  system elapsed 
+ 12.424   0.290  12.786
+```
+
+```{r, eval=FALSE}
+system.time(Cmcmc <- compileNimble(Rmcmc, project = Rmodel))
+```
+
+```
+compiling... this may take a minute. Use 'showCompilerOutput = TRUE' to see C++ compiler details.
+compilation finished.
+   user  system elapsed 
+ 11.745   0.296  12.121 
+```
+
+```{r, eval=FALSE}
+set.seed(0)
+system.time(samples <- runMCMC(Cmcmc, 50000, nburnin=10000, nchains=2, returnCodaMCMC=TRUE))
+samples2 <- as.matrix(Cmcmc$mvSamples2)
+```
+
+```
+running chain 1...
+|-------------|-------------|-------------|-------------|
+|-------------------------------------------------------|
+running chain 2...
+|-------------|-------------|-------------|-------------|
+|-------------------------------------------------------|
+   user  system elapsed 
+ 73.600   0.445  74.361 
+```
+
+```{r, include=FALSE, eval=FALSE}
+save(samples, samples2, file='results/samples.RData')
+```
+
+```{r, include=FALSE}
+setwd('~/github/zeilinger_grapevine/')
+load('data/temp1.RData')
+load('results/samples.RData')
+```
+
+\   
+
+### Convergence 
+
+We assess convergence of two chains, each with 40,000 post burn-in samples.
+
+\   
+
+The Brooks-Gelman-Rubin diagnostic over two chains of indicates convergence.
+
+```{r, warning=FALSE}
+library(coda)
+```
+
+```{r }
+gelman.diag(samples)
+```
+
+\   
+
+The effective sample size of the first chain is satisfactory, with a
+minimum of more than 6,700 effectively independent samples from all posterior
+dimensions, resulting from the 40,000 post burn-in samples.
+
+```{r }
+round(cbind(
+    length = apply(samples[[1]], 2, length),
+    ESS    = effectiveSize(samples[[1]])
+))
+```
+
+\   
+
+
+### Posterior Mean, Median, and 95% Credible Intervals 
+
+\   
+
+```{r}
+res <- round(cbind(
+    `CI Lower` = apply(samples[[1]], 2, function(x) quantile(x, 0.025)),
+    `Mean`         = apply(samples[[1]], 2, mean),
+    `Median`       = apply(samples[[1]], 2, median),
+    `CI Upper` = apply(samples[[1]], 2, function(x) quantile(x, 0.975))
+), 5)
+
+res
+```
+
+\   
+
+### Interpretations (updated v3)
+
+\   
+
+##### Bacteria concentration in source plants (constant terms)
+
+\   
+
+$\beta_1$, the constant term in the log() predictor for 
+source plant xf concentration in genotype DSF plants, is
+essentially `r round(res["b[1]","Mean"],3)`. Thus, the baseline xf
+concentration (at distance=0) in genotype DFS plants is $e^{\beta_1}
+\approx$ 44,000,000.
+
+$\beta_2$, the constant term in the log() predictor for 
+source plant xf concentration in genotype WT plants, is essentially `r round(res["b[2]","Mean"],3)`,
+slightly *higher* than the genotype DSF constant term.  Thus, the baseline xf
+concentration (at distance=0) in genotype WT plants is $e^{\beta_2}
+\approx$ 62,000,000.
+
+These values of $\beta_1$ and $\beta_2$ imply that
+for the *same distance*, genotype WT plants will have more xf
+bacteria than genotype DSF plants.  Specifically, higher in the WT
+plants by
+a factor of $e^{\beta_2-\beta_1} = e^{0.346}=$ `r round(exp(res["b[2]","Mean"] -
+res["b[1]","Mean"]), 3)`.
+
+\   
+
+##### Bacteria concentration in source plants (distance effect)
+
+\   
+
+$\beta_3$, the coefficient of distance in the log() predictor for 
+source plant xf concentration in genotype DSF plants, is essentially
+`r round(res["b[3]","Mean"],3)`. For every additional unit of
+distance, the source plant xf concentration in DSF plants will decrease by a factor
+of $e^{\beta_3}=$ `r round(exp(res["b[3]","Mean"]), 3)`.
+
+$\beta_4$, the coefficient of distance in the log() predictor for 
+vector xf concentration in genotype WT plants, is essentially
+`r round(res["b[4]","Mean"],3)`.  This is significantly lower than that
+of genotype DSF plants, implying that the xf concentration decreases
+ more rapidly (as a function of distance) in genotype WT plants, as
+compared to genotype DSF plants.  Specicially, for every additional unit of
+distance, the source plant xf concentration in WT plants will decrease by a factor
+of $e^{\beta_4}=$ `r round(exp(res["b[4]","Mean"]), 3)`.
+
+\  
+
+##### Bacteria transmission from source plants to vectors 
+
+\   
+
+For DSF source plants, $\beta_5$ and $\beta_7$ determine the linear
+relationship for how xf is transmitted to vectors, as
+$\lambda_{vector} = \beta_5 + \beta_7 \cdot \lambda_{source\ plant}$.  We are
+interested in the $\beta_7$ coefficient, which is approximately equal to 0.00087.  This means that for DSF source
+plants, the vector xf concentration scales as 0.00087 times the source plant xf concentration.
+
+For WT source plants, $\beta_6$ and $\beta_8$ determine the linear
+relationship for how xf is transmitted to vectors, as
+$\lambda_{vector} = \beta_6 + \beta_8 \cdot \lambda_{source\ plant}$.  We are
+interested in the $\beta_8$ coefficient, which is approximately equal to 0.00032.  This means that for WT source
+plants, the vector xf concentration scales as 0.00032 times the
+source plant xf concentration.  This is a much *lower transmission
+rate* from (source plants to vectors) for WT plants, as compared to DSF
+plants.
+
+\   
+
+##### Probability of test plant infection (genotype effect) 
+
+\   
+
+$\beta_{9}$ gives the baseline probability of infection (on the logit
+scale) for genotype DSF plants.  The 95% CI for $\beta_{9}$ is
+(`r round(res["b[9]","CI Lower"], 2)`,
+`r round(res["b[9]","CI Upper"], 2)`).  Taking the inverse-logit
+transformation $\left( \tfrac{1}{1+e^{-x}} \right)$, this gives a 95% CI for the baseline probability of infection for DSF
+source plants as (`r round(1/(1+exp(-res["b[9]","CI Lower"])), 2)`,
+`r round(1/(1+exp(-res["b[9]","CI Upper"])), 2)`).  This
+does not take xf concentration in the vector into account.
+
+$\beta_{10}$ gives the baseline probability of infection (on the logit
+scale) for genotype WT plants.  The 95% CI for $\beta_{10}$ is
+(`r round(res["b[10]","CI Lower"], 2)`,
+`r round(res["b[10]","CI Upper"], 2)`).  Taking the inverse-logit
+transformation $\left( \tfrac{1}{1+e^{-x}} \right)$, this gives a 95% CI for the baseline probability of infection for WT
+source plants as (`r round(1/(1+exp(-res["b[10]","CI Lower"])), 2)`,
+`r round(1/(1+exp(-res["b[10]","CI Upper"])), 2)`).  This
+does not take xf concentration in the vector into account.
+
+\   
+
+##### Probability of test plant infection (vector xf effect) 
+
+\   
+
+$\beta_{11}$, the coefficient for vector xf level in the logit() predictor for test plant
+infection, is not significantly different from 0, with 95% credible
+interval (-0.00015, 0.00003).
+
+\   
+
+##### Bacteria detection (source plants, vectors) 
+
+\   
+
+$p_{obs.\ source\ plant}$, the probability of xf detection in source
+plants, is bounded by the 95% CI (`r round(res["p_obs_plant","CI Lower"], 2)`,
+`r round(res["p_obs_plant","CI Upper"], 2)`), with median
+`r round(res["p_obs_plant","Median"], 3)`.  This means the test used has about
+a 50% chance of detecting any xf bacteria in source plants.
+
+\   
+
+$p_{obs.\ vector}$, the probability of xf detection in vectors,
+is bounded by the 95% CI (`r round(res["p_obs_vector","CI Lower"], 2)`,
+`r round(res["p_obs_vector","CI Upper"], 2)`) , with median
+`r round(res["p_obs_vector","Median"], 3)`.  This means the test used has about
+a 20% chance of detecting any xf bacteria in vectors.
+
+\   
+
+##### Predictive distributions for test plant infection 
+
+\   
+
+The predictive nodes give the best idea of the probability of
+infection, from either DSF or WT source plants, predicted at distance = 0.
+These estimates take all model parameters and biological processes into account.
+
+- Probability of infection for genotype DSF (at distance = 0) is in the 95% CI: (`r round(res["p_infect_dsf","CI Lower"], 2)`,
+`r round(res["p_infect_dsf","CI Upper"], 2)`), with median = `r round(res["p_infect_dsf","Median"], 2)`. 
+- Probability of infection for genotype WT (at distance = 0) is in the 95% CI: (`r round(res["p_infect_wt","CI Lower"], 2)`,
+`r round(res["p_infect_wt","CI Upper"], 2)`), with median = `r round(res["p_infect_wt","Median"], 2)`. 
+
+\   
+
+Next, we look at the probabilities of infection from *all test plants*,
+separated by genotype.  These do not assume any particular distance
+(*e.g.*, distance = 0).  Instead, these quite literally represent *all*
+distances in the input data set.
+
+\   
+
+```{r }
+dsf_ind <- intersect(which(constants$genotype_dsf == 1), constants$obs_ind_infected)
+wt_ind  <- intersect(which(constants$genotype_wt  == 1), constants$obs_ind_infected)
+pinfect_dsf_nodes <- paste0('p_infect[', dsf_ind, ']')
+pinfect_wt_nodes  <- paste0('p_infect[', wt_ind,  ']')
+pinfect_dsf <- as.numeric(samples2[, pinfect_dsf_nodes])
+pinfect_wt  <- as.numeric(samples2[, pinfect_wt_nodes])
+dsf_res <- c(quantile(pinfect_dsf,0.025), mean(pinfect_dsf), median(pinfect_dsf), quantile(pinfect_dsf,0.975))
+wt_res <-  c(quantile(pinfect_wt, 0.025), mean(pinfect_wt ), median(pinfect_wt ), quantile(pinfect_wt, 0.975))
+infection_results <- rbind(dsf_res, wt_res)
+rownames(infection_results) <- c('p_infect_dsf', 'p_infect_wt')
+colnames(infection_results) <- c("CI Lower", "Mean", "Median", "CI Upper")
+round(infection_results, 2)
+```
+
+\   
+
+We see that:
+
+- Probabilities of infection for genotype DSF plants are in the 95% CI:
+(`r round(infection_results["p_infect_dsf","CI Lower"], 2)`,
+`r round(infection_results["p_infect_dsf","CI Upper"], 2)`), with
+median = `r round(infection_results["p_infect_dsf","Median"], 2)`.
+- Probabilities of infection for genotype WT plants are in the 95% CI:
+(`r round(infection_results["p_infect_wt","CI Lower"], 2)`,
+`r round(infection_results["p_infect_wt","CI Upper"], 2)`), with
+median = `r round(infection_results["p_infect_wt","Median"], 2)`.
+
+\   
+
+These agree well with the predictions at distance = 0, although the
+95% intervals here are wider, since this is representative of all possible
+distances (giving larger variation in the probability of infection).
+The medians closely agree.
+
+\   
+
+### Hierarchical Plots (new v4)
+
+\    
+
+Predicted probability of infection versus observed xf concentration
+in vectors (log base 10), separated by genotype.  We include best-fit
+regression lines.
+
+We use the actual (log base 10) xf concentration for the x-axis, rather than
+predicted concentration ($\lambda_{vector}$), since:
+
+  - This will compare better with the GLMM plot.
+  - logit(p\_infect) is simply a linear function of
+      $\lambda_{vector}$, which doesn't make for a very interesting
+      plot.
+
+\   
+
+```{r }
+## indices of DSF and WT cases for which xf_vector was observed
+dsf_ind <- intersect(which(constants$genotype_dsf == 1), constants$obs_ind_vector)
+wt_ind  <- intersect(which(constants$genotype_wt  == 1), constants$obs_ind_vector)
+## get xf_vector values for each genotype, and take log base 10
+xf_vector_dsf_log10 <- log10(data$xf_vector[dsf_ind])
+xf_vector_wt_log10  <- log10(data$xf_vector[wt_ind])
+## change -infinity to 0
+xf_vector_dsf_log10[xf_vector_dsf_log10 < 0] <- 0
+xf_vector_wt_log10 [xf_vector_wt_log10  < 0] <- 0
+## get samples of p_infect for each genotype, and take the median
+p_infect_dsf_nodes <- paste0('p_infect[', dsf_ind, ']')
+p_infect_wt_nodes  <- paste0('p_infect[', wt_ind,  ']')
+p_infect_dsf <- apply(samples2[, p_infect_dsf_nodes], 2, median, na.rm = TRUE)
+p_infect_wt  <- apply(samples2[, p_infect_wt_nodes],  2, median, na.rm = TRUE)
+## plot p_infect vs. xf_vector (for each genotype) + regression lines
+plot(xf_vector_dsf_log10, p_infect_dsf, ylim = c(0, 1), xlab = 'log10(xf_vector)', ylab = 'Pr(infect)')
+abline(lm(p_infect_dsf ~ xf_vector_dsf_log10))
+points(xf_vector_wt_log10, p_infect_wt, pch = 2)
+abline(lm(p_infect_wt ~ xf_vector_wt_log10), lty = 2)
+legend('topright', legend = c('DSF', 'WT'), lty = 1:2)
+legend('top',      legend = c('DSF', 'WT'), pch = 1:2)
+```
+
+\    
+
+
+
+### Posterior Density Plots
+
+\   
+ 
+##### Predictive distributions for test plant infection 
+
+\   
+
+Below are the posterior predictive distributions for test plant 
+infection, for genotype DSF and WT plants, predicted at distance = 0. 
+
+\   
+
+```{r fig.height=2}
+samplesPlot(samples[[1]], c('p_infect_dsf','p_infect_wt'), width = 4, height = 2, traceplot = FALSE)
+```
+
+\   
+
+Below are the posterior predictive distributions for test plant 
+infection, for genotype DSF and WT plants, for all distances.
+
+*Note:* This next plot could be smoothed out if you want to use it.  I used
+ a large thinning interval (thin = 100) for collecting these samples,
+ since it's for a large number of nodes (one for each plant).  The
+ thinning interval could be reduced, to retain more samples and smooth out the predictive distributions.
+
+```{r fig.height=2}
+set.seed(0)
+pinfect_df <- data.frame(p_infect_dsf = sample(pinfect_dsf,length(pinfect_wt)),
+                         p_infect_wt  = pinfect_wt)
+samplesPlot(pinfect_df, c('p_infect_dsf','p_infect_wt'), width = 4, height = 2, traceplot = FALSE)
+```
+
+
+\  
+
+##### Posterior densities of all model parameters
+
+\   
+
+```{r, eval = FALSE}
+plot(coda::as.mcmc(samples[[1]]), ask = FALSE)
+```
+
+```{r, echo = FALSE}
+##for(i in 1:5)
+##    plot(coda::as.mcmc(samples[[1]][, (3*i-2):(3*i)]), ask = FALSE)
+```
+
+
+
+### References
+
+\   
+
+
+```{r eval=FALSE, include=FALSE}
+rng <- range(samples[[1]][, Rmodel$expandNodeNames('lambda_vector')])
+par(mfrow=c(2,1)), mar=c(1,1,1,1))
+ymax <- 0.03
+makePolygons <- function(ind, data, samples) {
+    for(i in ind) {
+        dens <- density(samples[[1]][, paste0('lambda_vector[',i,']')])
+        color <- if(data$infected[i]) 'red' else 'black'
+        polygon(x=dens$x, y=dens$y, border=color)
+    }
+}
+plot(0,0, xlim=rng, ylim=c(0,ymax), main='Genotype DSF', xlab='lambda_vector', ylab='posterior density')
+ind <- which(!is.na(data$infected) & constants$genotype_dsf)
+makePolygons(ind, data, samples)
+plot(0,0, xlim=rng, ylim=c(0,ymax), main='Genotype WT',  xlab='lambda_vector', ylab='posterior density')
+ind <- which(!is.na(data$infected) & constants$genotype_wt)
+makePolygons(ind, data, samples)
+
+
+
+
+rng <- range(c(
+    as.numeric(samples[[1]][, Rmodel$expandNodeNames('lambda_vector')]),
+    as.numeric(na.omit(data$xf_vector))
+))
+par(mfrow=c(2,1)), mar=c(1,1,1,1))
+ymax <- 0.03
+pointsY <- 0
+pch <- 19
+makePolygons <- function(ind, data, samples) {
+    for(i in ind) {
+        dens <- density(samples[[1]][, paste0('lambda_vector[',i,']')])
+        color <- if(data$infected[i]) 'red' else 'black'
+        polygon(x=dens$x, y=dens$y, border=color)
+    }
+}
+plot(0,0, xlim=rng, ylim=c(0,ymax), main='Genotype DSF', xlab='lambda_vector', ylab='posterior density')
+ind <- which(!is.na(data$infected) & constants$genotype_dsf)
+makePolygons(ind, data, samples)
+ind <- which(!is.na(data$xf_vector) & !is.na(data$infected) & constants$genotype_dsf)
+points(x=data$xf_vector[ind], y=rep(pointsY,length(ind)), pch=pch, col = ifelse(data$infected[ind], 'red', 'black'))
+
+
+plot(0,0, xlim=rng, ylim=c(0,ymax), main='Genotype WT',  xlab='lambda_vector', ylab='posterior density')
+ind <- which(!is.na(data$infected) & constants$genotype_wt)
+makePolygons(ind, data, samples)
+ind <- which(!is.na(data$xf_vector) & !is.na(data$infected) & constants$genotype_wt)
+points(x=data$xf_vector[ind], y=rep(pointsY,length(ind)), pch=pch, col = ifelse(data$infected[ind], 'red', 'black'))
+```
+
+
+
+
+
+```{r, include=FALSE, eval=FALSE}
+library(coda)
+apply(samples, 2, length)
+apply(samples, 2, mean)
+apply(samples, 2, effectiveSize)
+
+cor(samples)   ## b[5] and b[6] correlated
+
+burn <- 0
+burn <- 1000
+burn <- 5000
+burn <- 50000
+samplesPlot(samples)
+samplesPlot(samples, 'b[1]', burnin=burn)   ## slow mixing b[1]
+samplesPlot(samples, 'b[2]', burnin=burn)   ## slow mixing b[2]
+samplesPlot(samples, 'b[3]', burnin=burn)
+samplesPlot(samples, 'b[4]', burnin=burn)
+samplesPlot(samples, 'b[5]', burnin=burn)
+samplesPlot(samples, 'b[6]', burnin=burn)
+samplesPlot(samples, 'k', burnin=burn)      ## slow mixing k ??
+##samplesPlot(samples, 'k2', burnin=burn)      ## slow mixing k ??
+samplesPlot(samples, 'p_obs_plant', burnin=burn)
+samplesPlot(samples, 'p_obs_vector', burnin=burn)
+samplesPlot(samples, 'sigma_alpha', burnin=burn)
+
+
+codamcmc <- runMCMC(Cmcmc, 50000, nburnin=10000, nchains=3, returnCodaMCMC=TRUE)
+coda::gelman.diag(codamcmc, autoburnin = FALSE)
+
+
+
+
+colnames(samples)
+samplesPlot(samples, 1)  ## slow mixing b[1]
+samplesPlot(samples, 2)  ## slow mixing b[2] 
+samplesPlot(samples, 3)
+samplesPlot(samples, 4)
+samplesPlot(samples, 5)
+samplesPlot(samples, 6)
+samplesPlot(samples, 7)  ## slow mixing k
+samplesPlot(samples, 8)
+samplesPlot(samples, 9)
+samplesPlot(samples, 10)
+
+
+
+##code <- nimbleCode({
+##  mu_alpha ~ dnorm(0, 0.001)
+##  sigma_alpha ~ dunif(0, 1000)
+##  for(i in 1:nplant) { 
+##    alpha[i] ~ dnorm(mu_alpha, sd = sigma_alpha)  ## site random effect
+##  }
+##  for(i in 1:7) {
+##    beta[i] ~ dnorm(0, 0.001)
+##  }
+##  for(i in 1:2) {
+##    betagenotype[i] ~ dnorm(0, 0.001)
+##  }
+##  for(i in 1:N) {
+##    # Source plant sub-model
+##    log(lambda_plant[i]) <- alpha[plantID[i]] + betagenotype[genotype[i]] + beta[1]*distance[i]
+##    xf_source_plant[i] ~ dpois(lambda_plant[i])
+##    # Vector sub-model with detection probabilty
+##    log(lambda_vector[i]) <- beta[2] + beta[3]*lamba_plant[i] # Biological process
+##    logit(p_vector[i]) <- beta[4] + beta[5]*p_trans[i] # Detection probability
+##    N_vector[i] ~ dpois(lambda_vector[i]) # True Xf population in vectors
+##    xf_vector[i] ~ dbin(p_vector[i], N_vector[i]) # Data on Xf population in vectors
+##    # Transmission probability sub-model
+##    logit(p_trans[i]) <- beta[6] + beta[7]*N_vector[i]
+##    infected[i] ~ dbern(p_trans[i])
+##  }
+##})
+## 
+##constants <- with(nimbleTransData,
+##                  list(N=N, 
+##                       nplant=nplant, 
+##                       genotype = genotype, 
+##                       distance = distance,  
+##                       #genotype_distance = genotype_distance, 
+##                       # xf_source_plant = xf_source_plant,
+##                       # xf_vector = xf_vector,
+##                       # infected = infected,
+##                       plantID = plantID))
+## 
+##data <- with(nimbleTransData, 
+##             list(xf_source_plant = xf_source_plant,
+##                  xf_vector = xf_vector,
+##                  infected=infected))
+## 
+##inits <- list(mu_alpha=0, sigma_alpha=1, alpha=rep(0,nimbleTransData$nplant), beta=rep(0,7), betagenotype=rep(0,2))
+## 
+##modelInfo <- list(code=code, constants=constants, data=data, inits=inits, name='month')
+## 
+## 
+###### Set up model and samplers
+##Rmodel <- nimbleModel(modelInfo$code,
+##                      modelInfo$constants,
+##                      modelInfo$data,
+##                      modelInfo$inits)
+## 
+##Cmodel <- compileNimble(Rmodel)
+## 
+##spec <- configureMCMC(Rmodel)
+## 
+###### Best configuration of samplers for random effect occupancy model
+##spec$removeSamplers('beta[1:9]')
+##spec$addSampler('beta[1:3]', 'RW_block') # detection sub-model sampler
+##spec$addSampler('beta[4:9]', 'RW_block') # occupancy sub-model sampler
+##spec$removeSamplers('sigma_alpha')
+##spec$addSampler('sigma_alpha', 'RW_log_shift', list(shiftNodes='alpha')) # random effect sampler
+##spec$getSamplers() # Check samplers
+##spec$addMonitors(c('p_occ')) # add a monitor to get p_occ in output
+###spec$addMonitors(c('p_obs')) # add a monitor to get p_obs in output
+## 
+###### Compile MCMC in R and C++
+##Rmcmc <- buildMCMC(spec)
+##Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
+## 
+###### Run MCMC with 150,000 iterations and 50,000 burn-in
+##niter <- 1500
+##burnin <- 500
+## 
+##ti <- Sys.time()
+##samplesList <- lapply(1, mcmcClusterFunction)
+##tf <- Sys.time()
+## 
+### The time it took to run MCMC
+##tf-ti
+## 
+##save(samplesList, file = 'output/MCMC_list_climate_transmission.RData')
+
+
+if(FALSE) {
+    ## pcr data, possibly to use later
+    pcr <- readRDS('data/xf_vector_population_pcr_data.rds')  ## new file with the replicated bacteria counts for vectors
+    str(pcr)
+    head(pcr, 15)
+    dim(pcr)
+    ## We use quantitative PCR (qPCR), which means we are estimating the number of copies of a gene fragment specific to the bacteria in the tissues of the insect vector. We extract all the DNA from each insect, then take two small samples of the extract and run qPCR in duplicate. The xf_vector numbers that I sent you is actually the mean of the two duplicate qPCR runs for each sample. I've attached the data showing the duplicates. The "sample" column is the ID of the insect vector, "rep1" and "rep2" are the replicates of the counts of bacteria, and "mean_xf_vector" is the mean of rep1 and rep2, and also the data that is in the "xf_vector" variable I sent you earlier.  As you can see, replicates for each vector are either both 0 or both >0; there are only 4 vectors where one replicate is 0 and the other is >0. Additionally, when both replicates are >0, there is some variation in the estimated count between the two replicates. 
+}
+##
+
+
+##ind <- 43
+##ind <- 44
+##ind <- 56
+##ind <- 78
+##ind <- 96
+##ind <- 97
+## 
+##nodes <- c(
+##    paste0('b[',6,']'),
+##    ##'sigma_alpha', 'mu_alpha',
+##    'p_obs_plant', 'p_obs_vector',
+##    ##'k',
+##    paste0('z_plant[',ind,']'),
+##    paste0('z_vector[',ind,']'),
+##    paste0('lambda_plant[',ind,']'),
+##    paste0('lambda_vector[',ind,']'),
+##    paste0('p_infect[',ind,']'),
+##    paste0('xf_source_plant[',ind,']'),
+##    paste0('xf_vector[',ind,']'),
+##    paste0('infected[',ind,']')
+##)
+##i <- 5000:5010
+##cbind(samples[i, nodes],
+##      dat_source=data$xf_source_plant[ind],
+##      dat_vector=data$xf_vector[ind],
+##      dat_infect=data$infected[ind])
+```
+
