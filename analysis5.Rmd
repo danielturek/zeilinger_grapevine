@@ -1036,12 +1036,14 @@ vectorPred_wt <- log10(b6 + b8*xplant)
 # Combine into data.frame
 plotPred <- data.frame(cbind(xplant, vectorPred_dsf, vectorPred_wt))
 
+# Note: Linear models are only modeling non-zero values, remove zeros from raw data
+
 ## ggplot
 sourceVectorPlot <- ggplot(data = plotdf) +
-  geom_point(data = plotdf[plotdf$genotype == "WT",], 
+  geom_point(data = plotdf[plotdf$genotype == "WT" & plotdf$xf_vector_log10 > 0,], 
              aes(y = jitter(xf_vector_log10, amount = 0.05), x = jitter(xf_source_log10, amount = 0.05)),
              size = 4, pch = 1) +
-  geom_point(data = plotdf[plotdf$genotype == "DSF",], 
+  geom_point(data = plotdf[plotdf$genotype == "DSF" & plotdf$xf_vector_log10 > 0,], 
              aes(y = jitter(xf_vector_log10, amount = 0.05), x = jitter(xf_source_log10, amount = 0.05)),
              size = 4, pch = 2) +
   # stat_smooth(data = plotdf[plotdf$genotype == "WT",], aes(y = lambda_vector_log10, x = lambda_plant_log10), 
@@ -1067,8 +1069,9 @@ ggsave(filename = "results/vectorxf_sourcexf_plot.tiff",
 
 
 #### Plotting distance vs. lambda_plant
-distance_dsf <- constants$distance[dsf_ind]
-distance_wt <- constants$distance[wt_ind]
+# Need to get the un-scaled (raw) distance from the original data file
+distance_dsf <- dsf$dsfData$raw_distance[dsf_ind]
+distance_wt <- dsf$dsfData$raw_distance[wt_ind]
 plotdf$distance <- c(distance_dsf, distance_wt)
 
 # Extract coefficients
@@ -1083,9 +1086,13 @@ plantPred_wt <- log10(exp(b2) + exp(b4)*xdistance)
 
 plotPred2 <- data.frame(cbind(xdistance, plantPred_dsf, plantPred_wt))
 
+# Note: Linear models are only modeling non-zero values, remove zeros from raw data
+
 distanceSourcePlot <- ggplot(data = plotdf) +
-  geom_point(data = plotdf[plotdf$genotype == "WT",], aes(y = xf_source_log10, x = distance), size = 4, pch = 1) +
-  geom_point(data = plotdf[plotdf$genotype == "DSF",], aes(y = xf_source_log10, x = distance), size = 4, pch = 2) +
+  geom_point(data = plotdf[plotdf$genotype == "WT" & plotdf$xf_source_log10 > 0,], 
+             aes(y = xf_source_log10, x = distance), size = 4, pch = 1) +
+  geom_point(data = plotdf[plotdf$genotype == "DSF" & plotdf$xf_source_log10 > 0,], 
+             aes(y = xf_source_log10, x = distance), size = 4, pch = 2) +
   # stat_smooth(data = plotdf[plotdf$genotype == "WT",], aes(y = lambda_plant_log10, x = distance), 
   #             method = "lm", se = FALSE, col = "black", lty = 1) +
   # stat_smooth(data = plotdf[plotdf$genotype == "DSF",], aes(y = lambda_plant_log10, x = distance), 
