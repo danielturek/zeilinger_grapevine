@@ -416,13 +416,10 @@ conf$addMonitors('p_infect_dsf', 'p_infect_wt')
 
 ## add monitors for probability of infection (thin = 100)
 conf$setThin2(100)
-<<<<<<< HEAD
 conf$addMonitors2('p_infect')
 ## also add monitors for predicted xf vector concentrations lambda_vector and predicted xf source plant concentrations lambda_plant (thin = 100)
 conf$addMonitors2('lambda_vector', 'lambda_plant')
-=======
 conf$addMonitors2('p_infect', 'pred_xf_source_plant', 'pred_xf_vector')
->>>>>>> e8abb88eff26b6d68af3efbbe29032b6af43e261
 
 Rmcmc <- buildMCMC(conf)
 
