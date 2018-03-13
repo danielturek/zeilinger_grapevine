@@ -979,7 +979,7 @@ points(data$xf_source_plant[dsf_ind], y = data$xf_vector[dsf_ind], col = 'blue',
 points(data$xf_source_plant[wt_ind],  y = data$xf_vector[wt_ind],  col = 'red',  pch = 4)
 abline(lm(xf_vector_med ~ xf_plant_med, data = pred_df_dsf), col = 'blue')
 abline(lm(xf_vector_med ~ xf_plant_med, data = pred_df_wt),  col = 'red')
-legend(legend = c('DSF', 'WT'), 'topright', col = c('blue', 'red'), lty = 1)
+legend(legend = c('DSF', 'WT'), 'topleft', col = c('blue', 'red'), lty = 1)
 ```
 
 \   
