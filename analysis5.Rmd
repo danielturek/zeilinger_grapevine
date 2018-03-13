@@ -375,6 +375,13 @@ code <- nimbleCode({
     lambda_plant_wt <- p_trans_plant_wt * exp(b[2])
     lambda_vector_wt <- p_trans_vector_wt * (b[6] + b[8]*lambda_plant_wt)
     logit(p_infect_wt) <- b[10] + b[11]*lambda_vector_wt
+    ## xf_source_plant and xf_vector predictions
+    for(i in 1:N) {
+        pred_lambda_plant[i] <- exp(b[1]*genotype_dsf[i] + b[2]*genotype_wt[i] + b[3]*distance[i]*genotype_dsf[i] + b[4]*distance[i]*genotype_wt[i])
+        pred_lambda_vector[i] <- b[5]*genotype_dsf[i] + b[6]*genotype_wt[i] + b[7]*pred_lambda_plant[i]*genotype_dsf[i] + b[8]*pred_lambda_plant[i]*genotype_wt[i]
+        pred_xf_source_plant[i] ~ dpois(pred_lambda_plant[i])
+        pred_xf_vector[i] ~ dpois(pred_lambda_vector[i])
+    }
 })
 
 inits <- list(
@@ -388,12 +395,14 @@ inits <- list(
     z_trans_plant = rep(1, constants$N),
     z_trans_vector = rep(1, constants$N),
     z_obs_plant = rep(1, constants$N),
-    z_obs_vector = rep(1, constants$N)
+    z_obs_vector = rep(1, constants$N),
+    pred_xf_source_plant = rep(1, constants$N),
+    pred_xf_vector = rep(1, constants$N)
 )
 
 Rmodel <- nimbleModel(code, constants, data, inits)
 
-calculate(Rmodel)    ## -23645598042
+calculate(Rmodel)    ## -23645598236
 
 conf <- configureMCMC(Rmodel)
 
@@ -407,9 +416,13 @@ conf$addMonitors('p_infect_dsf', 'p_infect_wt')
 
 ## add monitors for probability of infection (thin = 100)
 conf$setThin2(100)
+<<<<<<< HEAD
 conf$addMonitors2('p_infect')
 ## also add monitors for predicted xf vector concentrations lambda_vector and predicted xf source plant concentrations lambda_plant (thin = 100)
 conf$addMonitors2('lambda_vector', 'lambda_plant')
+=======
+conf$addMonitors2('p_infect', 'pred_xf_source_plant', 'pred_xf_vector')
+>>>>>>> e8abb88eff26b6d68af3efbbe29032b6af43e261
 
 Rmcmc <- buildMCMC(conf)
 
@@ -1201,7 +1214,54 @@ samplesPlot(samples[[1]], c('p_trans_vector_dsf', 'p_trans_vector_wt'), width = 
 
 \  
 
-##### Posterior densities of all model parameters
+##### New Predictive plots
+
+\   
+
+```{r }
+library(dplyr)
+
+dsf_ind <- constants$genotype_dsf == 1
+wt_ind  <- constants$genotype_wt  == 1
+
+pred_xf_source_plant <- samples2[,grep("^pred_xf_source_plant", colnames(samples2))]
+pred_xf_vector       <- samples2[,grep("^pred_xf_vector",       colnames(samples2))]
+
+pred_df <- data.frame(
+    genotype = ifelse(constants$genotype_dsf, 'DSF', 'WT'),
+    distance = constants$distance,
+    xf_plant_med  = unname(apply(pred_xf_source_plant, 2, median)),
+    xf_vector_med = unname(apply(pred_xf_vector,      2, median))
+)
+
+pred_df %>% arrange(distance) -> pred_df
+pred_df %>% filter(genotype == 'DSF') -> pred_df_dsf
+pred_df %>% filter(genotype == 'WT')  -> pred_df_wt
+
+plot(-10, -10,
+     xlim = range(pred_df$distance),
+     ylim = range(data$xf_source_plant, na.rm = TRUE),
+     xlab = 'Distance', ylab = 'Predicted Source Plant xf Concentration')
+points(constants$distance[dsf_ind], y = data$xf_source_plant[dsf_ind], col = 'blue', pch = 4)
+points(constants$distance[wt_ind],  y = data$xf_source_plant[wt_ind],  col = 'red',  pch = 4)
+lines(pred_df_dsf$distance, pred_df_dsf$xf_plant_med, col = 'blue')
+lines(pred_df_wt$distance,  pred_df_wt$xf_plant_med,  col = 'red')
+legend(legend = c('DSF', 'WT'), 'topright', col = c('blue', 'red'), lty = 1)
+
+plot(-10, -10,
+     xlim = range(data$xf_source_plant, na.rm = TRUE),
+     ylim = range(data$xf_vector, na.rm = TRUE),
+     xlab = 'Predicted Source Plant xf Concentration', ylab = 'Predicted Vector xf Concentration')
+points(data$xf_source_plant[dsf_ind], y = data$xf_vector[dsf_ind], col = 'blue', pch = 4)
+points(data$xf_source_plant[wt_ind],  y = data$xf_vector[wt_ind],  col = 'red',  pch = 4)
+abline(lm(xf_vector_med ~ xf_plant_med, data = pred_df_dsf), col = 'blue')
+abline(lm(xf_vector_med ~ xf_plant_med, data = pred_df_wt),  col = 'red')
+legend(legend = c('DSF', 'WT'), 'topleft', col = c('blue', 'red'), lty = 1)
+```
+
+\   
+
+##### Posterior densities of all model parameters 
 
 \   
 
