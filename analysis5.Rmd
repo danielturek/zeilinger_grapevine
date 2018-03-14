@@ -1226,10 +1226,18 @@ pred_xf_vector       <- samples2[,grep("^pred_xf_vector",       colnames(samples
 
 pred_df <- data.frame(
     genotype = ifelse(constants$genotype_dsf, 'DSF', 'WT'),
-    distance = constants$distance,
-    xf_plant_med  = unname(apply(pred_xf_source_plant, 2, median)),
-    xf_vector_med = unname(apply(pred_xf_vector,      2, median))
+    distance = dsf$dsfData$raw_distance,
+    xf_source_log10 = log10(data$xf_source_plant),
+    xf_vector_log10 = log10(data$xf_vector),
+    xf_plant_med_log10  = log10(unname(apply(pred_xf_source_plant, 2, median))),
+    xf_vector_med_log10 = log10(unname(apply(pred_xf_vector, 2, median)))
 )
+
+# Set -Inf to 0
+for(i in grep("_log10", names(pred_df))){
+  pred_df[,i] <- ifelse(pred_df[,i] < 0, 0, pred_df[,i])
+}
+
 
 pred_df %>% arrange(distance) -> pred_df
 pred_df %>% filter(genotype == 'DSF') -> pred_df_dsf
@@ -1237,13 +1245,46 @@ pred_df %>% filter(genotype == 'WT')  -> pred_df_wt
 
 plot(-10, -10,
      xlim = range(pred_df$distance),
-     ylim = range(data$xf_source_plant, na.rm = TRUE),
+     ylim = range(pred_df$xf_source_log10, na.rm = TRUE),
      xlab = 'Distance', ylab = 'Predicted Source Plant xf Concentration')
-points(constants$distance[dsf_ind], y = data$xf_source_plant[dsf_ind], col = 'blue', pch = 4)
-points(constants$distance[wt_ind],  y = data$xf_source_plant[wt_ind],  col = 'red',  pch = 4)
-lines(pred_df_dsf$distance, pred_df_dsf$xf_plant_med, col = 'blue')
-lines(pred_df_wt$distance,  pred_df_wt$xf_plant_med,  col = 'red')
-legend(legend = c('DSF', 'WT'), 'topright', col = c('blue', 'red'), lty = 1)
+# Use unscaled (raw) distance
+points(pred_df_dsf$distance, y = pred_df_dsf$xf_source_log10, col = 'blue', pch = 4)
+points(pred_df_wt$distance,  y = pred_df_wt$xf_source_log10,  col = 'red',  pch = 4)
+lines(pred_df_dsf$distance, pred_df_dsf$xf_plant_med_log10, col = 'blue')
+lines(pred_df_wt$distance,  pred_df_wt$xf_plant_med_log10,  col = 'red')
+legend(legend = c('DSF', 'WT'), 'right', col = c('blue', 'red'), lty = 1)
+
+
+## ggplot
+# Plot only data with xf_source_plant > 0
+pred_nz <- pred_df %>% filter(xf_source_log10 > 0)
+
+distanceSourcePlot <- ggplot(data = pred_nz) +
+  geom_point(data = pred_nz[pred_nz$genotype == "WT",], 
+             aes(y = xf_source_log10, x = distance), size = 4, pch = 16) +
+  geom_point(data = pred_nz[pred_nz$genotype == "DSF",], 
+             aes(y = xf_source_log10, x = distance), size = 4, pch = 1) +
+  stat_smooth(data = pred_nz[pred_nz$genotype == "WT",],
+              aes(y = xf_plant_med_log10, x = distance), method = "lm", se = FALSE, col = "black", lty = 1) +
+  stat_smooth(data = pred_nz[pred_nz$genotype == "DSF",],
+              aes(y = xf_plant_med_log10, x = distance), method = "lm", se = FALSE, col = "black", lty = 2) +
+  ylab("Xylella populations in source plants (CFU/g, log10)") + xlab("Distance from inoculation point (cm)") + #ylim(0,1) +
+  theme_bw() + 
+  theme(axis.line = element_line(colour = "black"),
+        axis.text = element_text(size=14),
+        axis.title = element_text(size=16),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black"),
+        panel.background = element_blank()) 
+distanceSourcePlot
+
+ggsave(filename = "results/sourcexf_distance_plot.tiff",
+       plot = distanceSourcePlot,
+       width = 7, height = 7, units = "in")
+
+
+
 
 plot(-10, -10,
      xlim = range(data$xf_source_plant, na.rm = TRUE),
