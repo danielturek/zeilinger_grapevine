@@ -1350,6 +1350,18 @@ ggsave(filename = "results/sourcexf_distance_plot.tiff",
        plot = distanceSourcePlot,
        width = 7, height = 7, units = "in")
 
+
+
+#### Combining plots into Figure 2 for ms
+library(cowplot)
+fig2 <- plot_grid(distanceSourcePlot, sourceVectorPlot, vectorTransPlot, sourceTransPlot,
+                  align = "v", ncol = 2, nrow = 2, labels = "auto")
+fig2
+ggsave(filename = "results/figure2.tiff",
+       plot = fig2,
+       width = 12, height = 12, units = "in", dpi = 600)
+
+
 ```
 
 \   
