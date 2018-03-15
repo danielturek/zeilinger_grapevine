@@ -416,6 +416,9 @@ conf$addMonitors('p_infect_dsf', 'p_infect_wt')
 
 ## add monitors for probability of infection (thin = 100)
 conf$setThin2(100)
+conf$addMonitors2('p_infect')
+## also add monitors for predicted xf vector concentrations lambda_vector and predicted xf source plant concentrations lambda_plant (thin = 100)
+conf$addMonitors2('lambda_vector', 'lambda_plant')
 conf$addMonitors2('p_infect', 'pred_xf_source_plant', 'pred_xf_vector')
 
 Rmcmc <- buildMCMC(conf)
@@ -442,10 +445,10 @@ compilation finished.
 ```
 
 ```{r, eval=FALSE}
-niter <-  110000
+niter <-  120000
 nburnin <- 10000
 set.seed(0)
-system.time(samples <- runMCMC(Cmcmc, niter, nburnin=nburnin, nchains=2, samplesAsCodaMCMC=TRUE))
+system.time(samples <- runMCMC(Cmcmc, niter, nburnin=nburnin, nchains=2, returnCodaMCMC=TRUE))
 samples2 <- as.matrix(Cmcmc$mvSamples2)
 ```
 
@@ -783,6 +786,79 @@ infection_results <- rbind(dsf_res, wt_res)
 rownames(infection_results) <- c('p_infect_dsf', 'p_infect_wt')
 colnames(infection_results) <- c("CI Lower", "Mean", "Median", "CI Upper")
 round(infection_results, 2)
+
+
+#### Plot of parameter estimates and 95% CI
+library(ggplot2); library(dplyr); library(tidyr); library(cowplot)
+# Add full estimate of p_infect to the results table
+row.names(infection_results) <- c("p_infect_dsf_full", "p_infect_wt_full")
+plotres <- rbind(res, infection_results) %>% as.data.frame()
+names(plotres) <- c("cilower", "mean", "median", "ciupper")
+plotres$pars <- row.names(plotres)
+
+# Covariate names for figure
+plotres$covarNames <- c("xf population in DSF", "xf population in WT", # b1, b2
+                    "effect of distance DSF", "effect of distance WT", # b3, b4
+                    "intercept source xf on vector xf DSF", "intercept source xf on vector xf WT", # b5, b6
+                    "effect of source xf on vector xf DSF", "effect of source xf on vector xf WT", # b7, b8
+                    "baseline P(transmission) DSF", "baseline P(transmission) WT", # b9, 910
+                    "effect of vector xf on P(transmission)", # b11
+                    "P(transmission) from inoculation point DSF", "P(transmission) from inoculation point WT",
+                    "P(detection) source plant", "P(detection) vector",
+                    "P(infection) source plant DSF", "P(infection) source plant WT",
+                    "P(infection) vector DSF", "P(infection) vector WT",
+                    "P(transmission) all distances DSF", "P(transmission) all distances WT")
+
+#### Plotting results
+# Plot coefficient estimates and probabilities separately -- on slightly different scales
+# Coefficient estimates
+plotres1 <- plotres %>% dplyr::filter(pars == "b[1]" | pars == "b[2]" | pars == "b[3]" | pars == "b[4]" | 
+                                        pars == "b[7]" | pars == "b[8]" | pars == "b[11]")
+
+coef_plot <- ggplot(plotres1, aes(y = covarNames, x = median)) +
+  geom_errorbarh(aes(xmin = cilower, xmax = ciupper), colour = "black", height = 0.2) +
+  geom_point(size = 3) +
+  geom_vline(linetype = "longdash", xintercept = 0) +
+  xlab("Coefficient estimate") + ylab("") + 
+  theme_bw() + 
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size = 20),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black"),
+        panel.background = element_blank()) 
+coef_plot
+
+ggsave(filename = "results/coefficient_plot.tiff", 
+       plot = coef_plot,
+       width = 10, height = 7, units = "in")
+
+# Probability estimates
+# plotres2 <- plotres %>% 
+#   dplyr::filter(pars == "p_infect_dsf" | pars == "p_infect_wt" | pars == "p_obs_plant" | pars == "p_obs_vector" |
+#                   pars == "p_infect_full_dsf" | pars == "p_infect_full_wt")
+
+plotres2 <- plotres %>% dplyr::filter(grepl("p_", pars))
+
+coef_plot2 <- ggplot(plotres2, aes(y = covarNames, x = median)) +
+  geom_errorbarh(aes(xmin = cilower, xmax = ciupper), colour = "black", height = 0.2) +
+  geom_point(size = 3) +
+  #geom_vline(linetype = "longdash", xintercept = 0) +
+  xlab("Probability estimate") + ylab("") + 
+  xlim(c(0,1)) +
+  theme_bw() + 
+  theme(axis.line = element_line(colour = "black"),
+        text = element_text(size = 20),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black"),
+        panel.background = element_blank()) 
+coef_plot2
+
+ggsave(filename = "results/probability_estimate_plot.tiff", 
+       plot = coef_plot2,
+       width = 10, height = 7, units = "in")
+
 ```
 
 \   
@@ -851,6 +927,204 @@ points(xf_vector_wt_log10, p_infect_wt, pch = 1)
 abline(lm(p_infect_wt ~ xf_vector_wt_log10), lty = 1)
 legend('topleft', legend = c('DSF', 'WT'), lty = 2:1)
 legend('top',      legend = c('DSF', 'WT'), pch = 2:1)
+
+
+#### Create data set of predicted results and plot in ggplot
+# Make a WT data.frame and a DSF data.frame
+dsfdf <- data.frame(xf_vector_log10 = xf_vector_dsf_log10,
+                    p_infect = p_infect_dsf,
+                    genotype = "DSF")
+wtdf <- data.frame(xf_vector_log10 = xf_vector_wt_log10,
+                   p_infect = p_infect_wt,
+                   genotype = "WT")
+plotdf <- rbind(dsfdf, wtdf)
+
+
+vectorTransPlot <- ggplot(data = plotdf) +
+  geom_point(data = plotdf[plotdf$genotype == "WT",], aes(y = p_infect, x = xf_vector_log10), size = 4, pch = 16) +
+  geom_point(data = plotdf[plotdf$genotype == "DSF",], aes(y = p_infect, x = xf_vector_log10), size = 4, pch = 1) +
+  stat_smooth(data = plotdf[plotdf$genotype == "WT",], aes(y = p_infect, x = xf_vector_log10), method = "lm", se = FALSE, col = "black", lty = 1) +
+  stat_smooth(data = plotdf[plotdf$genotype == "DSF",], aes(y = p_infect, x = xf_vector_log10), method = "lm", se = FALSE, col = "black", lty = 2) +
+  xlab("Xylella populations in vectors (CFU, log10)") + ylab("Probability of transmission") + ylim(0,1) +
+  theme_bw() + 
+  theme(axis.line = element_line(colour = "black"),
+        axis.text = element_text(size=14),
+        axis.title = element_text(size=16),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black"),
+        panel.background = element_blank()) 
+vectorTransPlot
+
+ggsave(filename = "results/transmission_vectorxf_plot.tiff",
+       plot = vectorTransPlot,
+       width = 7, height = 7, units = "in")
+  
+
+
+#### Plotting probability of transmission vs source plant populations
+#### Plot of transmission vs. xf in source plant, using original xf_source data
+plotdf$xf_source_log10 <- log10(c(data$xf_source_plant[dsf_ind], data$xf_source_plant[wt_ind]))
+## change -infinity to 0
+plotdf$xf_source_log10[plotdf$xf_source_log10 < 0] <- 0
+
+## plot p_infect vs. xf_source (for each genotype) + regression lines
+tiff("results/transmission_sourcexf_plot.tif")
+  plot(xf_source_dsf_log10, p_infect_dsf, ylim = c(0, 1), 
+       xlab = 'Xylella population in source plants (log10 transformed)', 
+       ylab = 'P(transmission)', pch = 2)
+  abline(lm(p_infect_dsf ~ xf_source_dsf_log10), lty = 2)
+  points(xf_source_wt_log10, p_infect_wt, pch = 1)
+  abline(lm(p_infect_wt ~ xf_vector_wt_log10), lty = 1)
+  legend('topright', legend = c('DSF', 'WT'), lty = 2:1)
+  legend('top',      legend = c('DSF', 'WT'), pch = 2:1)
+dev.off()
+
+
+## p_infect vs. xf_source in ggplot
+sourceTransPlot <- ggplot(data = plotdf) +
+  geom_point(data = plotdf[plotdf$genotype == "WT",], aes(y = p_infect, x = xf_source_log10), size = 4, pch = 16) +
+  geom_point(data = plotdf[plotdf$genotype == "DSF",], aes(y = p_infect, x = xf_source_log10), size = 4, pch = 1) +
+  stat_smooth(data = plotdf[plotdf$genotype == "WT",], aes(y = p_infect, x = xf_source_log10), method = "lm", se = FALSE, col = "black", lty = 1) +
+  stat_smooth(data = plotdf[plotdf$genotype == "DSF",], aes(y = p_infect, x = xf_source_log10), method = "lm", se = FALSE, col = "black", lty = 2) +
+  xlab("Xylella populations in source plants (CFU/g, log10)") + ylab("Probability of transmission") + ylim(0,1) +
+  theme_bw() + 
+  theme(axis.line = element_line(colour = "black"),
+        axis.text = element_text(size=14),
+        axis.title = element_text(size=16),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black"),
+        panel.background = element_blank()) 
+sourceTransPlot
+
+ggsave(filename = "results/transmission_sourcexf_plot.tiff",
+       plot = sourceTransPlot,
+       width = 7, height = 7, units = "in")
+
+
+#### Plotting xf_vector vs. xf_source
+
+## Extract estimates of lambda_plant
+# lambda_plant_dsf_nodes <- paste0('lambda_plant[', dsf_ind, ']')
+# lambda_plant_wt_nodes <- paste0('lambda_plant[', wt_ind, ']')
+# lambda_plant_dsf <- apply(samples2[, lambda_plant_dsf_nodes], 2, median, na.rm = TRUE)
+# lambda_plant_wt <- apply(samples2[, lambda_plant_wt_nodes], 2, median, na.rm = TRUE)
+# # Log10 transform data and add to plot data.frame
+# plotdf$lambda_plant_log10 <- log10(c(lambda_plant_dsf, lambda_plant_wt))
+# ## change -infinity to 0
+# plotdf$lambda_plant_log10[plotdf$lambda_plant_log10 < 0] <- 0
+# 
+# plot(plotdf$xf_source_log10, plotdf$lambda_plant_log10)
+# # One point is 0 in raw data but lambda > 0: node 32. Why is this?
+# 
+# ## Extract estimates of lambda_vector
+# lambda_vector_dsf_nodes <- paste0('lambda_vector[', dsf_ind, ']')
+# lambda_vector_wt_nodes <- paste0('lambda_vector[', wt_ind, ']')
+# lambda_vector_dsf <- apply(samples2[, lambda_vector_dsf_nodes], 2, median, na.rm = TRUE)
+# lambda_vector_wt <- apply(samples2[, lambda_vector_wt_nodes], 2, median, na.rm = TRUE)
+# # Log10 transform data and add to plot data.frame
+# plotdf$lambda_vector_log10 <- log10(c(lambda_vector_dsf, lambda_vector_wt))
+# ## change -infinity to 0
+# plotdf$lambda_vector_log10[plotdf$lambda_vector_log10 < 0] <- 0
+# 
+# ## Looking at lambdas
+# with(plotdf[plotdf$genotype == "DSF",], plot(x = jitter(lambda_plant_log10, amount = 0), y = jitter(lambda_vector_log10, amount = 0)))
+# with(plotdf[plotdf$genotype == "WT",], plot(x = jitter(lambda_plant_log10, amount = 0), y = jitter(lambda_vector_log10, amount = 0)))
+# 
+# 
+# ## Generate predictions from b[] coefficients
+# # Extract coefficients
+# b5 <- plotres[plotres$pars == "b[5]", "median"] # Intercept for DSF
+# b6 <- plotres[plotres$pars == "b[6]", "median"] # Intercept for WT
+# b7 <- plotres[plotres$pars == "b[7]", "median"] # Slope for DSF
+# b8 <- plotres[plotres$pars == "b[8]", "median"] # Slope for WT
+# # Calculate predicted xf pops in vectors
+# xplant <- with(plotdf[!is.na(plotdf$xf_source_log10),], runif(100, min = min(xf_source_log10), max = max(xf_source_log10))) %>% sort()
+# vectorPred_dsf <- log10(b5 + b7*xplant)
+# vectorPred_wt <- log10(b6 + b8*xplant)
+# # Combine into data.frame
+# plotPred <- data.frame(cbind(xplant, vectorPred_dsf, vectorPred_wt))
+# 
+# # Note: Linear models are only modeling non-zero values, remove zeros from raw data
+# 
+# ## ggplot
+# sourceVectorPlot <- ggplot(data = plotdf) +
+#   geom_point(data = plotdf[plotdf$genotype == "WT" & plotdf$xf_vector_log10 > 0,], 
+#              aes(y = jitter(xf_vector_log10, amount = 0.05), x = jitter(xf_source_log10, amount = 0.05)),
+#              size = 4, pch = 1) +
+#   geom_point(data = plotdf[plotdf$genotype == "DSF" & plotdf$xf_vector_log10 > 0,], 
+#              aes(y = jitter(xf_vector_log10, amount = 0.05), x = jitter(xf_source_log10, amount = 0.05)),
+#              size = 4, pch = 2) +
+#   # stat_smooth(data = plotdf[plotdf$genotype == "WT",], aes(y = lambda_vector_log10, x = lambda_plant_log10), 
+#   #             method = "lm", se = FALSE, col = "black", lty = 1) +
+#   # stat_smooth(data = plotdf[plotdf$genotype == "DSF",], aes(y = lambda_vector_log10, x = lambda_plant_log10), 
+#   #             method = "lm", se = FALSE, col = "black", lty = 2) +
+#   stat_smooth(data = plotPred, aes(y = vectorPred_wt, x = xplant), method = "lm", se = FALSE, col = "black", lty = 1) +
+#   stat_smooth(data = plotPred, aes(y = vectorPred_dsf, x = xplant), method = "lm", se = FALSE, col = "black", lty = 2) +
+#   xlab("Xylella populations in source plants (CFU/g, log10)") + ylab("Xylella populations in vectors (CFU, log10)") + #ylim(0,1) +
+#   theme_bw() + 
+#   theme(axis.line = element_line(colour = "black"),
+#         axis.text = element_text(size=14),
+#         axis.title = element_text(size=16),
+#         panel.grid.major = element_blank(),
+#         panel.grid.minor = element_blank(),
+#         panel.border = element_rect(colour = "black"),
+#         panel.background = element_blank()) 
+# sourceVectorPlot
+# 
+# ggsave(filename = "results/vectorxf_sourcexf_plot.tiff",
+#        plot = sourceVectorPlot,
+#        width = 7, height = 7, units = "in")
+
+
+# #### Plotting distance vs. lambda_plant
+# # Need to get the un-scaled (raw) distance from the original data file
+# distance_dsf <- dsf$dsfData$raw_distance[dsf_ind]
+# distance_wt <- dsf$dsfData$raw_distance[wt_ind]
+# plotdf$distance <- c(distance_dsf, distance_wt)
+# 
+# # Extract coefficients
+# b1 <- plotres[plotres$pars == "b[1]", "median"] # Intercept for DSF
+# b2 <- plotres[plotres$pars == "b[2]", "median"] # Intercept for WT
+# b3 <- plotres[plotres$pars == "b[3]", "median"] # Slope for DSF
+# b4 <- plotres[plotres$pars == "b[4]", "median"] # Slope for WT
+# 
+# xdistance <- with(plotdf[!is.na(plotdf$distance),], runif(100, min = min(distance), max = max(distance))) %>% sort()
+# plantPred_dsf <- log10(exp(b1) + exp(b3)*xdistance)
+# plantPred_wt <- log10(exp(b2) + exp(b4)*xdistance)
+# 
+# plotPred2 <- data.frame(cbind(xdistance, plantPred_dsf, plantPred_wt))
+# 
+# # Note: Linear models are only modeling non-zero values, remove zeros from raw data
+# 
+# distanceSourcePlot <- ggplot(data = plotdf) +
+#   geom_point(data = plotdf[plotdf$genotype == "WT" & plotdf$xf_source_log10 > 0,], 
+#              aes(y = xf_source_log10, x = distance), size = 4, pch = 1) +
+#   geom_point(data = plotdf[plotdf$genotype == "DSF" & plotdf$xf_source_log10 > 0,], 
+#              aes(y = xf_source_log10, x = distance), size = 4, pch = 2) +
+#   # stat_smooth(data = plotdf[plotdf$genotype == "WT",], aes(y = lambda_plant_log10, x = distance), 
+#   #             method = "lm", se = FALSE, col = "black", lty = 1) +
+#   # stat_smooth(data = plotdf[plotdf$genotype == "DSF",], aes(y = lambda_plant_log10, x = distance), 
+#   #             method = "lm", se = FALSE, col = "black", lty = 2) +
+#   stat_smooth(data = plotPred2, aes(y = plantPred_wt, x = xdistance), method = "lm", se = FALSE, col = "black", lty = 1) +
+#   stat_smooth(data = plotPred2, aes(y = plantPred_dsf, x = xdistance), method = "lm", se = FALSE, col = "black", lty = 2) +
+#   ylab("Xylella populations in source plants (CFU/g, log10)") + xlab("Distance from inoculation point (cm)") + #ylim(0,1) +
+#   theme_bw() + 
+#   theme(axis.line = element_line(colour = "black"),
+#         axis.text = element_text(size=14),
+#         axis.title = element_text(size=16),
+#         panel.grid.major = element_blank(),
+#         panel.grid.minor = element_blank(),
+#         panel.border = element_rect(colour = "black"),
+#         panel.background = element_blank()) 
+# distanceSourcePlot
+# 
+# ggsave(filename = "results/sourcexf_distance_plot.tiff",
+#        plot = distanceSourcePlot,
+#        width = 7, height = 7, units = "in")
+
+
 ```
 
 \    
@@ -952,25 +1226,72 @@ pred_xf_vector       <- samples2[,grep("^pred_xf_vector",       colnames(samples
 
 pred_df <- data.frame(
     genotype = ifelse(constants$genotype_dsf, 'DSF', 'WT'),
-    distance = constants$distance,
-    xf_plant_med  = unname(apply(pred_xf_source_plant, 2, median)),
-    xf_vector_med = unname(apply(pred_xf_vector,      2, median))
+    distance = dsf$dsfData$raw_distance,
+    xf_source_plant = data$xf_source_plant,
+    xf_vector = data$xf_vector,
+    xf_plant_med = unname(apply(pred_xf_source_plant, 2, median)),
+    xf_vector_med = unname(apply(pred_xf_vector, 2, median)),
+    xf_source_log10 = log10(data$xf_source_plant),
+    xf_vector_log10 = log10(data$xf_vector),
+    xf_plant_med_log10  = log10(unname(apply(pred_xf_source_plant, 2, median))),
+    xf_vector_med_log10 = log10(unname(apply(pred_xf_vector, 2, median)))
 )
+
+# Set -Inf to 0
+for(i in grep("_log10", names(pred_df))){
+  pred_df[,i] <- ifelse(pred_df[,i] < 0, 0, pred_df[,i])
+}
+
 
 pred_df %>% arrange(distance) -> pred_df
 pred_df %>% filter(genotype == 'DSF') -> pred_df_dsf
 pred_df %>% filter(genotype == 'WT')  -> pred_df_wt
 
+
+#### Plot of xf_source_plant vs. distance
 plot(-10, -10,
      xlim = range(pred_df$distance),
-     ylim = range(data$xf_source_plant, na.rm = TRUE),
+     ylim = range(pred_df$xf_source_log10, na.rm = TRUE),
      xlab = 'Distance', ylab = 'Predicted Source Plant xf Concentration')
-points(constants$distance[dsf_ind], y = data$xf_source_plant[dsf_ind], col = 'blue', pch = 4)
-points(constants$distance[wt_ind],  y = data$xf_source_plant[wt_ind],  col = 'red',  pch = 4)
-lines(pred_df_dsf$distance, pred_df_dsf$xf_plant_med, col = 'blue')
-lines(pred_df_wt$distance,  pred_df_wt$xf_plant_med,  col = 'red')
-legend(legend = c('DSF', 'WT'), 'topright', col = c('blue', 'red'), lty = 1)
+# Use unscaled (raw) distance
+points(pred_df_dsf$distance, y = pred_df_dsf$xf_source_log10, col = 'blue', pch = 4)
+points(pred_df_wt$distance,  y = pred_df_wt$xf_source_log10,  col = 'red',  pch = 4)
+lines(pred_df_dsf$distance, pred_df_dsf$xf_plant_med_log10, col = 'blue')
+lines(pred_df_wt$distance,  pred_df_wt$xf_plant_med_log10,  col = 'red')
+legend(legend = c('DSF', 'WT'), 'right', col = c('blue', 'red'), lty = 1)
 
+
+## ggplot
+# Plot only data with xf_source_plant > 0
+pred_nz <- pred_df %>% filter(xf_source_log10 > 0)
+
+distanceSourcePlot <- ggplot(data = pred_nz) +
+  geom_point(data = pred_nz[pred_nz$genotype == "WT",], 
+             aes(y = xf_source_log10, x = distance), size = 4, pch = 16) +
+  geom_point(data = pred_nz[pred_nz$genotype == "DSF",], 
+             aes(y = xf_source_log10, x = distance), size = 4, pch = 1) +
+  stat_smooth(data = pred_nz[pred_nz$genotype == "WT",],
+              aes(y = xf_plant_med_log10, x = distance), method = "lm", se = FALSE, col = "black", lty = 1) +
+  stat_smooth(data = pred_nz[pred_nz$genotype == "DSF",],
+              aes(y = xf_plant_med_log10, x = distance), method = "lm", se = FALSE, col = "black", lty = 2) +
+  ylab("Xylella populations in source plants (CFU/g, log10)") + xlab("Distance from inoculation point (cm)") + #ylim(0,1) +
+  theme_bw() + 
+  theme(axis.line = element_line(colour = "black"),
+        axis.text = element_text(size=14),
+        axis.title = element_text(size=16),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black"),
+        panel.background = element_blank()) 
+distanceSourcePlot
+
+ggsave(filename = "results/sourcexf_distance_plot.tiff",
+       plot = distanceSourcePlot,
+       width = 7, height = 7, units = "in")
+
+
+
+#### Plot of xf_vector vs xf_source_plant
 plot(-10, -10,
      xlim = range(data$xf_source_plant, na.rm = TRUE),
      ylim = range(data$xf_vector, na.rm = TRUE),
@@ -980,6 +1301,67 @@ points(data$xf_source_plant[wt_ind],  y = data$xf_vector[wt_ind],  col = 'red', 
 abline(lm(xf_vector_med ~ xf_plant_med, data = pred_df_dsf), col = 'blue')
 abline(lm(xf_vector_med ~ xf_plant_med, data = pred_df_wt),  col = 'red')
 legend(legend = c('DSF', 'WT'), 'topleft', col = c('blue', 'red'), lty = 1)
+
+## In ggplot
+pred_nz2 <- pred_nz %>% dplyr::filter(xf_vector_log10 > 0)
+
+sourceVectorPlot <- ggplot(data = pred_df) +
+  geom_point(data = pred_df[pred_df$genotype == "WT",], 
+             aes(y = xf_vector, x = xf_source_plant), size = 4, pch = 16) +
+  geom_point(data = pred_df[pred_df$genotype == "DSF",], 
+             aes(y = xf_vector, x = xf_source_plant), size = 4, pch = 1) +
+  stat_smooth(data = pred_df[pred_df$genotype == "WT",],
+              aes(y = xf_vector_med, x = xf_plant_med), method = "lm", se = FALSE, col = "black", lty = 1) +
+  stat_smooth(data = pred_df[pred_df$genotype == "DSF",],
+              aes(y = xf_vector_med, x = xf_plant_med), method = "lm", se = FALSE, col = "black", lty = 2) +
+  xlab("Xylella populations in source plants (CFU/g, log10)") + ylab("Xylella populations in vectors (CFU, log10)") + 
+  theme_bw() + 
+  theme(axis.line = element_line(colour = "black"),
+        axis.text = element_text(size=14),
+        axis.title = element_text(size=16),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black"),
+        panel.background = element_blank()) 
+sourceVectorPlot
+
+
+sourceVectorPlot <- ggplot(data = pred_df) +
+  geom_point(data = pred_df[pred_df$genotype == "WT",], 
+             aes(y = xf_vector_log10, x = xf_source_log10), size = 4, pch = 16) +
+  geom_point(data = pred_df[pred_df$genotype == "DSF",], 
+             aes(y = xf_vector_log10, x = xf_source_log10), size = 4, pch = 1) +
+  stat_smooth(data = pred_df[pred_df$genotype == "WT",],
+              aes(y = xf_vector_med_log10, x = xf_plant_med_log10), method = "lm", se = FALSE, fullrange = TRUE, col = "black", lty = 1) +
+  stat_smooth(data = pred_df[pred_df$genotype == "DSF",],
+              aes(y = xf_vector_med_log10, x = xf_plant_med_log10), method = "lm", se = FALSE, fullrange = TRUE, col = "black", lty = 2) +
+  xlab("Xylella populations in source plants (CFU/g, log10)") + ylab("Xylella populations in vectors (CFU, log10)") + ylim(c(0,5)) +
+  theme_bw() + 
+  theme(axis.line = element_line(colour = "black"),
+        axis.text = element_text(size=14),
+        axis.title = element_text(size=16),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black"),
+        panel.background = element_blank()) 
+sourceVectorPlot
+
+ggsave(filename = "results/sourcexf_distance_plot.tiff",
+       plot = distanceSourcePlot,
+       width = 7, height = 7, units = "in")
+
+
+
+#### Combining plots into Figure 2 for ms
+library(cowplot)
+fig2 <- plot_grid(distanceSourcePlot, sourceVectorPlot, vectorTransPlot, sourceTransPlot,
+                  align = "v", ncol = 2, nrow = 2, labels = "auto")
+fig2
+ggsave(filename = "results/figure2.tiff",
+       plot = fig2,
+       width = 12, height = 12, units = "in", dpi = 600)
+
+
 ```
 
 \   
